@@ -1,0 +1,14 @@
+{
+  "name": "l2ob",
+  "version": "1.0.0",
+  "description": "L2 Order Book",
+  "repository": "git@github.com:mortimr/l2ob.git",
+  "license": "MIT",
+  "devDependencies": {
+    "prettier": "2.5.1",
+    "prettier-plugin-solidity": "1.0.0-beta.19"
+  },
+  "scripts": {
+    "format": "prettier --write 'src/**/*.sol'"
+  }
+}
