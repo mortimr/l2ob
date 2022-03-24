@@ -1,4 +1,6 @@
 [default]
+solc = '0.8.6'
+auto_detect_solc = false
 src = 'src'
 out = 'out'
 libs = ['lib']

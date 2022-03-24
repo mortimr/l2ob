@@ -1,0 +1,6 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity >=0.8.6;
+
+contract PublicLibrary {
+    // handle all the logic to execute the best orders
+}
