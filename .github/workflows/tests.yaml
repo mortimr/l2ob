@@ -15,4 +15,4 @@ jobs:
         with:
           version: nightly
 
-      - run: forge test--force -vvvvv
+      - run: forge test --force -vvvvv
