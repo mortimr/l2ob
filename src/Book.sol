@@ -48,10 +48,10 @@ contract Book is ERC1155 {
 
     address public printer;
 
-    address public token0;
-    address public token1;
     uint256 public id0;
     uint256 public id1;
+    address public token0;
+    address public token1;
     bool public erc1155_0;
     bool public erc1155_1;
     uint8 public decimals0;
@@ -126,11 +126,11 @@ contract Book is ERC1155 {
     }
 
     function head0() external view returns (Order memory) {
-        return orders[keyOrderIndexes[0]];
+        return orders[keyOrderIndexes[HEAD0]];
     }
 
     function head1() external view returns (Order memory) {
-        return orders[keyOrderIndexes[2]];
+        return orders[keyOrderIndexes[HEAD1]];
     }
 
     function balanceOf(address _owner, uint256 _id) external view override returns (uint256) {
@@ -264,7 +264,7 @@ contract Book is ERC1155 {
             _clean(id - 1, from, to, amount); // clean balance, and send filled tokens relative to amount sent to recipient
             _clean(id - 1, to, to, 0); // clean recipient balance
         } else {
-            _clean(id, from, to, amount); // clean balance, and send filled tokens relative to amount sent to recipient
+            _clean(id, from, from, amount); // clean balance, and send filled tokens relative to amount sent to recipient
             _clean(id, to, to, 0); // clean recipient balance
 
             _balanceOf[from][id] -= amount;
@@ -308,7 +308,7 @@ contract Book is ERC1155 {
                 _clean(id - 1, to, to, 0);
                 amounts[i] = 0;
             } else {
-                _clean(id, from, to, amount);
+                _clean(id, from, from, amount);
                 _clean(id, to, to, 0);
 
                 _balanceOf[from][id] -= amount;
