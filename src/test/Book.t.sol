@@ -134,6 +134,7 @@ contract BookTest is DSTestPlus {
             vm.startPrank(bob);
             pb.open(price, uint64(i), bob);
             price += ((price * 300) / 100000) + 1;
+            vm.stopPrank();
         }
         uint64[] memory indexes = new uint64[](10);
 
@@ -279,6 +280,7 @@ contract BookTest is DSTestPlus {
             vm.startPrank(bob);
             pb.open(price, uint64(i), bob);
             price += ((price * 300) / 100000) + 1;
+            vm.stopPrank();
         }
         uint64[] memory indexes = new uint64[](10);
 
@@ -532,6 +534,7 @@ contract BookTest is DSTestPlus {
             pb.open(price0, 0, bob);
             assert(pb.keyOrderIndexes(2) == 1);
             assert(pb.keyOrderIndexes(3) == 1);
+            vm.stopPrank();
         }
         {
             token1.mint(address(pb), orderSize);
@@ -541,6 +544,7 @@ contract BookTest is DSTestPlus {
             pb.open(price1, 1, bob);
             assert(pb.keyOrderIndexes(2) == 2);
             assert(pb.keyOrderIndexes(3) == 1);
+            vm.stopPrank();
         }
         {
             (
@@ -620,6 +624,7 @@ contract BookTest is DSTestPlus {
             pb.open(price0, 0, bob);
             assert(pb.keyOrderIndexes(0) == 1);
             assert(pb.keyOrderIndexes(1) == 1);
+            vm.stopPrank();
         }
         {
             token0.mint(address(pb), orderSize);
@@ -629,6 +634,7 @@ contract BookTest is DSTestPlus {
             pb.open(price1, 1, bob);
             assert(pb.keyOrderIndexes(0) == 2);
             assert(pb.keyOrderIndexes(1) == 1);
+            vm.stopPrank();
         }
         {
             uint256 orderId = price0 << 2;
@@ -709,6 +715,7 @@ contract BookTest is DSTestPlus {
             pb.open(price, 0, bob);
             assert(pb.keyOrderIndexes(0) == 1);
             assert(pb.keyOrderIndexes(1) == 1);
+            vm.stopPrank();
         }
         {
             uint256 orderId = (10**(18 + 6)) << 2;
@@ -779,6 +786,7 @@ contract BookTest is DSTestPlus {
             pb.open(price, 1, alice);
             assert(pb.keyOrderIndexes(0) == 1);
             assert(pb.keyOrderIndexes(1) == 1);
+            vm.stopPrank();
         }
         {
             uint256 orderId = (10**(18 + 6)) << 2;
@@ -805,6 +813,7 @@ contract BookTest is DSTestPlus {
         {
             vm.startPrank(bob);
             token0.transfer(address(0), token0.balanceOf(bob));
+            vm.stopPrank();
         }
         {
             uint256 amount1In = ((orderSize) * price) / (10**(18 + 6));
@@ -860,6 +869,7 @@ contract BookTest is DSTestPlus {
             pb.open(price, 0, bob);
             assert(pb.keyOrderIndexes(2) == 1);
             assert(pb.keyOrderIndexes(3) == 1);
+            vm.stopPrank();
         }
         {
             uint256 orderId = ((price << 1) + 1) << 1;
@@ -930,6 +940,7 @@ contract BookTest is DSTestPlus {
             pb.open(price, 1, alice);
             assert(pb.keyOrderIndexes(2) == 1);
             assert(pb.keyOrderIndexes(3) == 1);
+            vm.stopPrank();
         }
         {
             uint256 orderId = ((price << 1) + 1) << 1;
@@ -956,6 +967,7 @@ contract BookTest is DSTestPlus {
         {
             vm.startPrank(bob);
             token1.transfer(address(0), token1.balanceOf(bob));
+            vm.stopPrank();
         }
         {
             uint256 amount0In = ((orderSize) * price) / (10**(18 + 6));
@@ -1011,6 +1023,7 @@ contract BookTest is DSTestPlus {
             pb.open(price, 0, bob);
             assert(pb.keyOrderIndexes(0) == 1);
             assert(pb.keyOrderIndexes(1) == 1);
+            vm.stopPrank();
         }
         {
             uint256 orderId = (10**(18 + 6)) << 2;
@@ -1071,6 +1084,7 @@ contract BookTest is DSTestPlus {
             pb.open(price, 1, alice);
             assert(pb.keyOrderIndexes(0) == 1);
             assert(pb.keyOrderIndexes(1) == 1);
+            vm.stopPrank();
         }
         {
             uint256 orderId = (10**(18 + 6)) << 2;
@@ -1097,6 +1111,7 @@ contract BookTest is DSTestPlus {
         {
             vm.startPrank(bob);
             token0.transfer(address(0), token0.balanceOf(bob));
+            vm.stopPrank();
         }
         {
             uint256 amount1In = ((orderSize) * price) / (10**(18 + 6));
@@ -1162,6 +1177,7 @@ contract BookTest is DSTestPlus {
             pb.open(price, 0, bob);
             assert(pb.keyOrderIndexes(2) == 1);
             assert(pb.keyOrderIndexes(3) == 1);
+            vm.stopPrank();
         }
         {
             uint256 orderId = ((price << 1) + 1) << 1;
@@ -1222,6 +1238,7 @@ contract BookTest is DSTestPlus {
             pb.open(price, 1, alice);
             assert(pb.keyOrderIndexes(2) == 1);
             assert(pb.keyOrderIndexes(3) == 1);
+            vm.stopPrank();
         }
         {
             uint256 orderId = ((price << 1) + 1) << 1;
@@ -1248,6 +1265,7 @@ contract BookTest is DSTestPlus {
         {
             vm.startPrank(bob);
             token1.transfer(address(0), token1.balanceOf(bob));
+            vm.stopPrank();
         }
         {
             uint256 amount0In = ((orderSize) * price) / (10**(18 + 6));
