@@ -7,6 +7,7 @@ interface IPublicLibrary {
     error InvalidArrayLength();
     error AmountInTooHigh(uint256 amountIn);
     error AmountOutTooLow(uint256 amountOut);
+    error InvalidPathArgument();
 
     function printer() external view returns (address);
 

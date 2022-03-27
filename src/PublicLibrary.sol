@@ -41,28 +41,28 @@ contract PublicLibrary is IPublicLibrary {
     //
 
     function getERC20ToERC20AmountIn(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountOut
+        address _tokenIn,
+        address _tokenOut,
+        uint256 _amountOut
     ) external view override returns (uint256) {
         return
             _getMinAmountIn(
-                IBook(IPrinter(printer).pairForERC20(tokenIn, tokenOut)),
-                amountOut,
-                _isERC20Token0(tokenOut, tokenIn) == true ? 0 : 1
+                IBook(IPrinter(printer).pairForERC20(_tokenIn, _tokenOut)),
+                _amountOut,
+                _isERC20Token0(_tokenOut, _tokenIn) == true ? 0 : 1
             );
     }
 
     function getERC20ToERC20AmountOut(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn
+        address _tokenIn,
+        address _tokenOut,
+        uint256 _amountIn
     ) external view override returns (uint256) {
         return
             _getMaxAmountOut(
-                IBook(IPrinter(printer).pairForERC20(tokenIn, tokenOut)),
-                amountIn,
-                _isERC20Token0(tokenOut, tokenIn) == true ? 0 : 1
+                IBook(IPrinter(printer).pairForERC20(_tokenIn, _tokenOut)),
+                _amountIn,
+                _isERC20Token0(_tokenOut, _tokenIn) == true ? 0 : 1
             );
     }
 
@@ -86,51 +86,51 @@ contract PublicLibrary is IPublicLibrary {
     }
 
     function swapExactERC20forERC20(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address tokenIn,
-        address tokenOut,
-        address to,
-        uint256 deadline
+        uint256 _amountIn,
+        uint256 _amountOutMin,
+        address _tokenIn,
+        address _tokenOut,
+        address _to,
+        uint256 _deadline
     ) external override returns (uint256 amountOut) {
-        if (block.timestamp > deadline) {
+        if (block.timestamp > _deadline) {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForERC20(tokenIn, tokenOut));
-        bool tokenOutIsToken0 = tokenOut < tokenIn;
-        amountOut = _getMaxAmountOut(book, amountIn, tokenOutIsToken0 ? 0 : 1);
+        IBook book = IBook(IPrinter(printer).pairForERC20(_tokenIn, _tokenOut));
+        bool tokenOutIsToken0 = _tokenOut < _tokenIn;
+        amountOut = _getMaxAmountOut(book, _amountIn, tokenOutIsToken0 ? 0 : 1);
 
-        if (amountOut < amountOutMin) {
+        if (amountOut < _amountOutMin) {
             revert AmountOutTooLow(amountOut);
         }
 
-        IERC20(tokenIn).transferFrom(msg.sender, address(book), amountIn);
-        book.swap(tokenOutIsToken0 ? amountOut : 0, tokenOutIsToken0 ? 0 : amountOut, to, '');
+        IERC20(_tokenIn).transferFrom(msg.sender, address(book), _amountIn);
+        book.swap(tokenOutIsToken0 ? amountOut : 0, tokenOutIsToken0 ? 0 : amountOut, _to, '');
     }
 
     function swapERC20forExactERC20(
-        uint256 amountOut,
-        uint256 amountInMax,
-        address tokenIn,
-        address tokenOut,
-        address to,
-        uint256 deadline
+        uint256 _amountOut,
+        uint256 _amountInMax,
+        address _tokenIn,
+        address _tokenOut,
+        address _to,
+        uint256 _deadline
     ) external override returns (uint256 amountIn) {
-        if (block.timestamp > deadline) {
+        if (block.timestamp > _deadline) {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForERC20(tokenIn, tokenOut));
-        bool tokenOutIsToken0 = tokenOut < tokenIn;
-        amountIn = _getMinAmountIn(book, amountOut, tokenOutIsToken0 ? 0 : 1);
+        IBook book = IBook(IPrinter(printer).pairForERC20(_tokenIn, _tokenOut));
+        bool tokenOutIsToken0 = _tokenOut < _tokenIn;
+        amountIn = _getMinAmountIn(book, _amountOut, tokenOutIsToken0 ? 0 : 1);
 
-        if (amountIn > amountInMax) {
+        if (amountIn > _amountInMax) {
             revert AmountInTooHigh(amountIn);
         }
 
-        IERC20(tokenIn).transferFrom(msg.sender, address(book), amountIn);
-        book.swap(tokenOutIsToken0 ? amountOut : 0, tokenOutIsToken0 ? 0 : amountOut, to, '');
+        IERC20(_tokenIn).transferFrom(msg.sender, address(book), amountIn);
+        book.swap(tokenOutIsToken0 ? _amountOut : 0, tokenOutIsToken0 ? 0 : _amountOut, _to, '');
     }
 
     //
@@ -143,21 +143,21 @@ contract PublicLibrary is IPublicLibrary {
     //
 
     function getERC20ToERC1155AmountIn(
-        address tokenIn,
-        address tokenOut,
-        uint256 idOut,
-        uint256 amountOut
+        address _tokenIn,
+        address _tokenOut,
+        uint256 _idOut,
+        uint256 _amountOut
     ) external view override returns (uint256) {
-        return _getMinAmountIn(IBook(IPrinter(printer).pairForHybrid(tokenOut, idOut, tokenIn)), amountOut, 0);
+        return _getMinAmountIn(IBook(IPrinter(printer).pairForHybrid(_tokenOut, _idOut, _tokenIn)), _amountOut, 0);
     }
 
     function getERC20ToERC1155AmountOut(
-        address tokenIn,
-        address tokenOut,
-        uint256 idOut,
-        uint256 amountIn
+        address _tokenIn,
+        address _tokenOut,
+        uint256 _idOut,
+        uint256 _amountIn
     ) external view override returns (uint256) {
-        return _getMaxAmountOut(IBook(IPrinter(printer).pairForHybrid(tokenOut, idOut, tokenIn)), amountIn, 0);
+        return _getMaxAmountOut(IBook(IPrinter(printer).pairForHybrid(_tokenOut, _idOut, _tokenIn)), _amountIn, 0);
     }
 
     function openERC20ToERC1155Order(
@@ -181,51 +181,51 @@ contract PublicLibrary is IPublicLibrary {
     }
 
     function swapExactERC20forERC1155(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address tokenIn,
-        address tokenOut,
-        uint256 idOut,
-        address to,
-        uint256 deadline
+        uint256 _amountIn,
+        uint256 _amountOutMin,
+        address _tokenIn,
+        address _tokenOut,
+        uint256 _idOut,
+        address _to,
+        uint256 _deadline
     ) external override returns (uint256 amountOut) {
-        if (block.timestamp > deadline) {
+        if (block.timestamp > _deadline) {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForHybrid(tokenOut, idOut, tokenIn));
-        amountOut = _getMaxAmountOut(book, amountIn, 0);
+        IBook book = IBook(IPrinter(printer).pairForHybrid(_tokenOut, _idOut, _tokenIn));
+        amountOut = _getMaxAmountOut(book, _amountIn, 0);
 
-        if (amountOut < amountOutMin) {
+        if (amountOut < _amountOutMin) {
             revert AmountOutTooLow(amountOut);
         }
 
-        IERC20(tokenIn).transferFrom(msg.sender, address(book), amountIn);
-        book.swap(amountOut, 0, to, '');
+        IERC20(_tokenIn).transferFrom(msg.sender, address(book), _amountIn);
+        book.swap(amountOut, 0, _to, '');
     }
 
     function swapERC20forExactERC1155(
-        uint256 amountOut,
-        uint256 amountInMax,
-        address tokenIn,
-        address tokenOut,
-        uint256 idOut,
-        address to,
-        uint256 deadline
+        uint256 _amountOut,
+        uint256 _amountInMax,
+        address _tokenIn,
+        address _tokenOut,
+        uint256 _idOut,
+        address _to,
+        uint256 _deadline
     ) external override returns (uint256 amountIn) {
-        if (block.timestamp > deadline) {
+        if (block.timestamp > _deadline) {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForHybrid(tokenOut, idOut, tokenIn));
-        amountIn = _getMinAmountIn(book, amountOut, 0);
+        IBook book = IBook(IPrinter(printer).pairForHybrid(_tokenOut, _idOut, _tokenIn));
+        amountIn = _getMinAmountIn(book, _amountOut, 0);
 
-        if (amountIn > amountInMax) {
+        if (amountIn > _amountInMax) {
             revert AmountInTooHigh(amountIn);
         }
 
-        IERC20(tokenIn).transferFrom(msg.sender, address(book), amountIn);
-        book.swap(amountOut, 0, to, '');
+        IERC20(_tokenIn).transferFrom(msg.sender, address(book), amountIn);
+        book.swap(_amountOut, 0, _to, '');
     }
 
     //
@@ -238,21 +238,21 @@ contract PublicLibrary is IPublicLibrary {
     //
 
     function getERC155ToERC20AmountIn(
-        address tokenIn,
-        uint256 idIn,
-        address tokenOut,
-        uint256 amountOut
+        address _tokenIn,
+        uint256 _idIn,
+        address _tokenOut,
+        uint256 _amountOut
     ) external view override returns (uint256) {
-        return _getMinAmountIn(IBook(IPrinter(printer).pairForHybrid(tokenIn, idIn, tokenOut)), amountOut, 1);
+        return _getMinAmountIn(IBook(IPrinter(printer).pairForHybrid(_tokenIn, _idIn, _tokenOut)), _amountOut, 1);
     }
 
     function getERC155ToERC20AmountOut(
-        address tokenIn,
-        uint256 idIn,
-        address tokenOut,
-        uint256 amountIn
+        address _tokenIn,
+        uint256 _idIn,
+        address _tokenOut,
+        uint256 _amountIn
     ) external view override returns (uint256) {
-        return _getMaxAmountOut(IBook(IPrinter(printer).pairForHybrid(tokenIn, idIn, tokenOut)), amountIn, 1);
+        return _getMaxAmountOut(IBook(IPrinter(printer).pairForHybrid(_tokenIn, _idIn, _tokenOut)), _amountIn, 1);
     }
 
     function openERC1155ToERC20Order(
@@ -276,51 +276,51 @@ contract PublicLibrary is IPublicLibrary {
     }
 
     function swapExactERC1155forERC20(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address tokenIn,
-        uint256 idIn,
-        address tokenOut,
-        address to,
-        uint256 deadline
+        uint256 _amountIn,
+        uint256 _amountOutMin,
+        address _tokenIn,
+        uint256 _idIn,
+        address _tokenOut,
+        address _to,
+        uint256 _deadline
     ) external override returns (uint256 amountOut) {
-        if (block.timestamp > deadline) {
+        if (block.timestamp > _deadline) {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForHybrid(tokenIn, idIn, tokenOut));
-        amountOut = _getMaxAmountOut(book, amountIn, 1);
+        IBook book = IBook(IPrinter(printer).pairForHybrid(_tokenIn, _idIn, _tokenOut));
+        amountOut = _getMaxAmountOut(book, _amountIn, 1);
 
-        if (amountOut < amountOutMin) {
+        if (amountOut < _amountOutMin) {
             revert AmountOutTooLow(amountOut);
         }
 
-        IERC1155(tokenIn).safeTransferFrom(msg.sender, address(book), idIn, amountIn, '');
-        book.swap(0, amountOut, to, '');
+        IERC1155(_tokenIn).safeTransferFrom(msg.sender, address(book), _idIn, _amountIn, '');
+        book.swap(0, amountOut, _to, '');
     }
 
     function swapERC1155forExactERC20(
-        uint256 amountOut,
-        uint256 amountInMax,
-        address tokenIn,
-        uint256 idIn,
-        address tokenOut,
-        address to,
-        uint256 deadline
+        uint256 _amountOut,
+        uint256 _amountInMax,
+        address _tokenIn,
+        uint256 _idIn,
+        address _tokenOut,
+        address _to,
+        uint256 _deadline
     ) external override returns (uint256 amountIn) {
-        if (block.timestamp > deadline) {
+        if (block.timestamp > _deadline) {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForHybrid(tokenIn, idIn, tokenOut));
-        amountIn = _getMinAmountIn(book, amountOut, 1);
+        IBook book = IBook(IPrinter(printer).pairForHybrid(_tokenIn, _idIn, _tokenOut));
+        amountIn = _getMinAmountIn(book, _amountOut, 1);
 
-        if (amountIn > amountInMax) {
+        if (amountIn > _amountInMax) {
             revert AmountInTooHigh(amountIn);
         }
 
-        IERC1155(tokenIn).safeTransferFrom(msg.sender, address(book), idIn, amountIn, '');
-        book.swap(0, amountOut, to, '');
+        IERC1155(_tokenIn).safeTransferFrom(msg.sender, address(book), _idIn, amountIn, '');
+        book.swap(0, _amountOut, _to, '');
     }
 
     //
@@ -333,32 +333,32 @@ contract PublicLibrary is IPublicLibrary {
     //
 
     function getERC155ToERC1155AmountIn(
-        address tokenIn,
-        uint256 idIn,
-        address tokenOut,
-        uint256 idOut,
-        uint256 amountOut
+        address _tokenIn,
+        uint256 _idIn,
+        address _tokenOut,
+        uint256 _idOut,
+        uint256 _amountOut
     ) external view override returns (uint256) {
         return
             _getMinAmountIn(
-                IBook(IPrinter(printer).pairForERC1155(tokenIn, idIn, tokenOut, idOut)),
-                amountOut,
-                _isERC1155Token0(tokenOut, idOut, tokenIn, idIn) == true ? 0 : 1
+                IBook(IPrinter(printer).pairForERC1155(_tokenIn, _idIn, _tokenOut, _idOut)),
+                _amountOut,
+                _isERC1155Token0(_tokenOut, _idOut, _tokenIn, _idIn) == true ? 0 : 1
             );
     }
 
     function getERC155ToERC1155AmountOut(
-        address tokenIn,
-        uint256 idIn,
-        address tokenOut,
-        uint256 idOut,
-        uint256 amountIn
+        address _tokenIn,
+        uint256 _idIn,
+        address _tokenOut,
+        uint256 _idOut,
+        uint256 _amountIn
     ) external view override returns (uint256) {
         return
             _getMaxAmountOut(
-                IBook(IPrinter(printer).pairForERC1155(tokenIn, idIn, tokenOut, idOut)),
-                amountIn,
-                _isERC1155Token0(tokenOut, idOut, tokenIn, idIn) == true ? 0 : 1
+                IBook(IPrinter(printer).pairForERC1155(_tokenIn, _idIn, _tokenOut, _idOut)),
+                _amountIn,
+                _isERC1155Token0(_tokenOut, _idOut, _tokenIn, _idIn) == true ? 0 : 1
             );
     }
 
@@ -388,55 +388,55 @@ contract PublicLibrary is IPublicLibrary {
     }
 
     function swapExactERC1155forERC1155(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address tokenIn,
-        uint256 idIn,
-        address tokenOut,
-        uint256 idOut,
-        address to,
-        uint256 deadline
+        uint256 _amountIn,
+        uint256 _amountOutMin,
+        address _tokenIn,
+        uint256 _idIn,
+        address _tokenOut,
+        uint256 _idOut,
+        address _to,
+        uint256 _deadline
     ) external override returns (uint256 amountOut) {
-        if (block.timestamp > deadline) {
+        if (block.timestamp > _deadline) {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForERC1155(tokenIn, idIn, tokenOut, idOut));
-        bool tokenOutIsToken0 = tokenOut == tokenIn ? idOut < idIn : tokenOut < tokenIn;
-        amountOut = _getMaxAmountOut(book, amountIn, tokenOutIsToken0 ? 0 : 1);
+        IBook book = IBook(IPrinter(printer).pairForERC1155(_tokenIn, _idIn, _tokenOut, _idOut));
+        bool tokenOutIsToken0 = _tokenOut == _tokenIn ? _idOut < _idIn : _tokenOut < _tokenIn;
+        amountOut = _getMaxAmountOut(book, _amountIn, tokenOutIsToken0 ? 0 : 1);
 
-        if (amountOut < amountOutMin) {
+        if (amountOut < _amountOutMin) {
             revert AmountOutTooLow(amountOut);
         }
 
-        IERC1155(tokenIn).safeTransferFrom(msg.sender, address(book), idIn, amountIn, '');
-        book.swap(tokenOutIsToken0 ? amountOut : 0, tokenOutIsToken0 ? 0 : amountOut, to, '');
+        IERC1155(_tokenIn).safeTransferFrom(msg.sender, address(book), _idIn, _amountIn, '');
+        book.swap(tokenOutIsToken0 ? amountOut : 0, tokenOutIsToken0 ? 0 : amountOut, _to, '');
     }
 
     function swapERC1155forExactERC1155(
-        uint256 amountOut,
-        uint256 amountInMax,
-        address tokenIn,
-        uint256 idIn,
-        address tokenOut,
-        uint256 idOut,
-        address to,
-        uint256 deadline
+        uint256 _amountOut,
+        uint256 _amountInMax,
+        address _tokenIn,
+        uint256 _idIn,
+        address _tokenOut,
+        uint256 _idOut,
+        address _to,
+        uint256 _deadline
     ) external override returns (uint256 amountIn) {
-        if (block.timestamp > deadline) {
+        if (block.timestamp > _deadline) {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForERC1155(tokenIn, idIn, tokenOut, idOut));
-        bool tokenOutIsToken0 = tokenOut == tokenIn ? idOut < idIn : tokenOut < tokenIn;
-        amountIn = _getMinAmountIn(book, amountOut, tokenOutIsToken0 ? 0 : 1);
+        IBook book = IBook(IPrinter(printer).pairForERC1155(_tokenIn, _idIn, _tokenOut, _idOut));
+        bool tokenOutIsToken0 = _tokenOut == _tokenIn ? _idOut < _idIn : _tokenOut < _tokenIn;
+        amountIn = _getMinAmountIn(book, _amountOut, tokenOutIsToken0 ? 0 : 1);
 
-        if (amountIn > amountInMax) {
+        if (amountIn > _amountInMax) {
             revert AmountInTooHigh(amountIn);
         }
 
-        IERC1155(tokenIn).safeTransferFrom(msg.sender, address(book), idIn, amountIn, '');
-        book.swap(tokenOutIsToken0 ? amountOut : 0, tokenOutIsToken0 ? 0 : amountOut, to, '');
+        IERC1155(_tokenIn).safeTransferFrom(msg.sender, address(book), _idIn, amountIn, '');
+        book.swap(tokenOutIsToken0 ? _amountOut : 0, tokenOutIsToken0 ? 0 : _amountOut, _to, '');
     }
 
     //
@@ -448,74 +448,74 @@ contract PublicLibrary is IPublicLibrary {
     // ╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚═╝   ╚═╝    ╚══════╝   ╚═╝   ╚══════╝╚═╝     ╚══════╝
     //
 
-    function getAmountsOut(uint256[] calldata path, uint256 amountIn)
+    function getAmountsOut(uint256[] calldata _path, uint256 _amountIn)
         external
         view
         override
         returns (uint256[] memory amounts)
     {
-        TokenDetails[] memory td = _pathToTokenDetails(path);
-        return _getAmountsOut(td, amountIn);
+        TokenDetails[] memory td = _pathToTokenDetails(_path);
+        return _getAmountsOut(td, _amountIn);
     }
 
-    function getAmountsIn(uint256[] calldata path, uint256 amountOut)
+    function getAmountsIn(uint256[] calldata _path, uint256 _amountOut)
         external
         view
         override
         returns (uint256[] memory amounts)
     {
-        TokenDetails[] memory td = _pathToTokenDetails(path);
-        return _getAmountsIn(td, amountOut);
+        TokenDetails[] memory td = _pathToTokenDetails(_path);
+        return _getAmountsIn(td, _amountOut);
     }
 
     function swapExactInPath(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        uint256[] calldata path,
-        address to,
-        uint256 deadline
+        uint256 _amountIn,
+        uint256 _amountOutMin,
+        uint256[] calldata _path,
+        address _to,
+        uint256 _deadline
     ) external override returns (uint256[] memory amounts) {
-        if (block.timestamp > deadline) {
+        if (block.timestamp > _deadline) {
             revert DeadlineCrossed();
         }
 
-        if (path.length < 2) {
+        if (_path.length < 2) {
             revert InvalidArrayLength();
         }
 
-        TokenDetails[] memory tokenDetails = _pathToTokenDetails(path);
-        amounts = _getAmountsOut(tokenDetails, amountIn);
+        TokenDetails[] memory tokenDetails = _pathToTokenDetails(_path);
+        amounts = _getAmountsOut(tokenDetails, _amountIn);
 
-        if (amounts[amounts.length - 1] < amountOutMin) {
+        if (amounts[amounts.length - 1] < _amountOutMin) {
             revert AmountOutTooLow(amounts[amounts.length - 1]);
         }
 
-        _executeSwapPath(tokenDetails, amounts, to);
+        _executeSwapPath(tokenDetails, amounts, _to);
     }
 
     function swapExactOutPath(
-        uint256 amountOut,
-        uint256 amountInMax,
-        uint256[] calldata path,
-        address to,
-        uint256 deadline
+        uint256 _amountOut,
+        uint256 _amountInMax,
+        uint256[] calldata _path,
+        address _to,
+        uint256 _deadline
     ) external override returns (uint256[] memory amounts) {
-        if (block.timestamp > deadline) {
+        if (block.timestamp > _deadline) {
             revert DeadlineCrossed();
         }
 
-        if (path.length < 2) {
+        if (_path.length < 2) {
             revert InvalidArrayLength();
         }
 
-        TokenDetails[] memory tokenDetails = _pathToTokenDetails(path);
-        amounts = _getAmountsIn(tokenDetails, amountOut);
+        TokenDetails[] memory tokenDetails = _pathToTokenDetails(_path);
+        amounts = _getAmountsIn(tokenDetails, _amountOut);
 
-        if (amounts[0] > amountInMax) {
+        if (amounts[0] > _amountInMax) {
             revert AmountInTooHigh(amounts[0]);
         }
 
-        _executeSwapPath(tokenDetails, amounts, to);
+        _executeSwapPath(tokenDetails, amounts, _to);
     }
 
     //
@@ -537,16 +537,16 @@ contract PublicLibrary is IPublicLibrary {
     }
 
     function settle(
-        address[] calldata books,
-        uint256[][] calldata orderIds,
+        address[] calldata _books,
+        uint256[][] calldata _orderIds,
         address _owner
     ) external override {
-        if (books.length != orderIds.length || books.length == 0) {
+        if (_books.length != _orderIds.length || _books.length == 0) {
             revert InvalidArrayLength();
         }
 
-        for (uint256 i; i < books.length; ) {
-            IBook(books[i]).settle(_owner, orderIds[i]);
+        for (uint256 i; i < _books.length; ) {
+            IBook(_books[i]).settle(_owner, _orderIds[i]);
             unchecked {
                 ++i;
             }
@@ -571,129 +571,136 @@ contract PublicLibrary is IPublicLibrary {
     }
 
     function _getAmountIn(
-        uint256 amountOut,
-        uint256 price,
-        uint8 decimalSum
+        uint256 _amountOut,
+        uint256 _price,
+        uint8 _decimalSum
     ) internal pure returns (uint256) {
-        return ((amountOut * (10**decimalSum)) / price);
+        return ((_amountOut * (10**_decimalSum)) / _price);
     }
 
     function _getAmountOut(
-        uint256 amountIn,
-        uint256 price,
-        uint8 decimalSum
+        uint256 _amountIn,
+        uint256 _price,
+        uint8 _decimalSum
     ) internal pure returns (uint256) {
-        return (amountIn * price) / 10**decimalSum;
+        return (_amountIn * _price) / 10**_decimalSum;
     }
 
     function _getMaxAmountOut(
-        IBook book,
-        uint256 amountIn,
-        uint8 tokenOut
+        IBook _book,
+        uint256 _amountIn,
+        uint8 _tokenOut
     ) internal view returns (uint256 amountOut) {
-        IBook.Order memory order = tokenOut == 0 ? book.head0() : book.head1();
-        uint8 decimalSum = book.decimals0() + book.decimals1();
-        while (amountIn > 0) {
-            uint256 maxAmountIn = _getAmountIn(order.remainingLiquidity + order.nextLiquidity, order.price, decimalSum);
-            if (maxAmountIn > amountIn) {
-                amountIn = 0;
-                amountOut += _getAmountOut(amountIn, order.price, decimalSum);
+        IBook.Order memory order = _tokenOut == 0 ? _book.head0() : _book.head1();
+        uint8 decimalSum = _book.decimals0() + _book.decimals1();
+        while (_amountIn > 0) {
+            uint256 minAmountIn = _getAmountIn(order.remainingLiquidity + order.nextLiquidity, order.price, decimalSum);
+            if (minAmountIn > _amountIn) {
+                _amountIn = 0;
+                amountOut += _getAmountOut(_amountIn, order.price, decimalSum);
             } else {
-                amountIn -= maxAmountIn;
-                amountOut += _getAmountOut(maxAmountIn, order.price, decimalSum);
+                _amountIn -= minAmountIn;
+                amountOut += _getAmountOut(minAmountIn, order.price, decimalSum);
                 if (order.next == 0) {
-                    revert InsufficientLiquidity(address(book), tokenOut, amountOut);
+                    revert InsufficientLiquidity(address(_book), _tokenOut, amountOut);
                 }
-                order = book.orders(order.next);
+                order = _book.orders(order.next);
             }
         }
     }
 
     function _getMinAmountIn(
-        IBook book,
-        uint256 amountOut,
-        uint8 tokenOut
+        IBook _book,
+        uint256 _amountOut,
+        uint8 _tokenOut
     ) internal view returns (uint256 amountIn) {
-        IBook.Order memory order = tokenOut == 0 ? book.head0() : book.head1();
-        uint8 decimalSum = book.decimals0() + book.decimals1();
-        while (amountOut > 0) {
+        IBook.Order memory order = _tokenOut == 0 ? _book.head0() : _book.head1();
+        uint8 decimalSum = _book.decimals0() + _book.decimals1();
+        while (_amountOut > 0) {
             uint256 maxAmountOut = _getAmountOut(
                 order.remainingLiquidity + order.nextLiquidity,
                 order.price,
                 decimalSum
             );
-            if (maxAmountOut > amountOut) {
-                amountOut = 0;
-                amountIn += _getAmountIn(amountOut, order.price, decimalSum);
+            if (maxAmountOut > _amountOut) {
+                _amountOut = 0;
+                amountIn += _getAmountIn(_amountOut, order.price, decimalSum);
             } else {
-                amountOut -= maxAmountOut;
+                _amountOut -= maxAmountOut;
                 amountIn += _getAmountIn(maxAmountOut, order.price, decimalSum);
                 if (order.next == 0) {
-                    revert InsufficientLiquidity(address(book), tokenOut, amountOut);
+                    revert InsufficientLiquidity(address(_book), _tokenOut, _amountOut);
                 }
-                order = book.orders(order.next);
+                order = _book.orders(order.next);
             }
         }
     }
 
-    function _isERC20Token0(address tokenA, address tokenB) internal pure returns (bool) {
-        return tokenA < tokenB;
+    function _isERC20Token0(address _tokenA, address _tokenB) internal pure returns (bool) {
+        return _tokenA < _tokenB;
     }
 
     function _isERC1155Token0(
-        address tokenA,
-        uint256 idA,
-        address tokenB,
-        uint256 idB
+        address _tokenA,
+        uint256 _idA,
+        address _tokenB,
+        uint256 _idB
     ) internal pure returns (bool) {
-        if (tokenA == tokenB) {
-            return idA < idB;
+        if (_tokenA == _tokenB) {
+            return _idA < _idB;
         }
-        return tokenA < tokenB;
+        return _tokenA < _tokenB;
     }
 
-    function _getAmountsOut(TokenDetails[] memory path, uint256 amountIn)
+    function _getAmountsOut(TokenDetails[] memory _path, uint256 _amountIn)
         internal
         view
         returns (uint256[] memory amounts)
     {
-        amounts = new uint256[](path.length);
+        amounts = new uint256[](_path.length);
 
-        for (uint256 i; i < path.length - 1; ) {
-            amounts[i] = amountIn;
-            if (path[i].isERC1155 == false && path[i + 1].isERC1155 == false) {
-                amountIn = _getMaxAmountOut(
-                    IBook(IPrinter(printer).pairForERC20(path[i].tokenAddress, path[i + 1].tokenAddress)),
-                    amountIn,
-                    _isERC20Token0(path[i].tokenAddress, path[i + 1].tokenAddress) == true ? 1 : 0
+        for (uint256 i; i < _path.length - 1; ) {
+            amounts[i] = _amountIn;
+            if (_path[i].isERC1155 == false && _path[i + 1].isERC1155 == false) {
+                _amountIn = _getMaxAmountOut(
+                    IBook(IPrinter(printer).pairForERC20(_path[i].tokenAddress, _path[i + 1].tokenAddress)),
+                    _amountIn,
+                    _isERC20Token0(_path[i].tokenAddress, _path[i + 1].tokenAddress) == true ? 1 : 0
                 );
-            } else if (path[i].isERC1155 == true && path[i + 1].isERC1155 == true) {
-                amountIn = _getMaxAmountOut(
+            } else if (_path[i].isERC1155 == true && _path[i + 1].isERC1155 == true) {
+                _amountIn = _getMaxAmountOut(
                     IBook(
                         IPrinter(printer).pairForERC1155(
-                            path[i].tokenAddress,
-                            path[i].id,
-                            path[i + 1].tokenAddress,
-                            path[i + 1].id
+                            _path[i].tokenAddress,
+                            _path[i].id,
+                            _path[i + 1].tokenAddress,
+                            _path[i + 1].id
                         )
                     ),
-                    amountIn,
-                    _isERC1155Token0(path[i].tokenAddress, path[i].id, path[i + 1].tokenAddress, path[i + 1].id) == true
+                    _amountIn,
+                    _isERC1155Token0(_path[i].tokenAddress, _path[i].id, _path[i + 1].tokenAddress, _path[i + 1].id) ==
+                        true
                         ? 1
                         : 0
                 );
-            } else if (path[i].isERC1155 == true && path[i + 1].isERC1155 == false) {
-                amountIn = _getMaxAmountOut(
-                    IBook(IPrinter(printer).pairForHybrid(path[i].tokenAddress, path[i].id, path[i + 1].tokenAddress)),
-                    amountIn,
+            } else if (_path[i].isERC1155 == true && _path[i + 1].isERC1155 == false) {
+                _amountIn = _getMaxAmountOut(
+                    IBook(
+                        IPrinter(printer).pairForHybrid(_path[i].tokenAddress, _path[i].id, _path[i + 1].tokenAddress)
+                    ),
+                    _amountIn,
                     1
                 );
-            } else if (path[i].isERC1155 == false && path[i + 1].isERC1155 == true) {
-                amountIn = _getMaxAmountOut(
+            } else if (_path[i].isERC1155 == false && _path[i + 1].isERC1155 == true) {
+                _amountIn = _getMaxAmountOut(
                     IBook(
-                        IPrinter(printer).pairForHybrid(path[i + 1].tokenAddress, path[i + 1].id, path[i].tokenAddress)
+                        IPrinter(printer).pairForHybrid(
+                            _path[i + 1].tokenAddress,
+                            _path[i + 1].id,
+                            _path[i].tokenAddress
+                        )
                     ),
-                    amountIn,
+                    _amountIn,
                     0
                 );
             }
@@ -703,51 +710,58 @@ contract PublicLibrary is IPublicLibrary {
             }
         }
 
-        amounts[path.length - 1] = amountIn;
+        amounts[_path.length - 1] = _amountIn;
     }
 
-    function _getAmountsIn(TokenDetails[] memory path, uint256 amountOut)
+    function _getAmountsIn(TokenDetails[] memory _path, uint256 _amountOut)
         internal
         view
         returns (uint256[] memory amounts)
     {
-        amounts = new uint256[](path.length);
+        amounts = new uint256[](_path.length);
 
-        for (uint256 i = path.length - 1; i > 1; ) {
-            amounts[i] = amountOut;
-            if (path[i].isERC1155 == false && path[i - 1].isERC1155 == false) {
-                amountOut = _getMinAmountIn(
-                    IBook(IPrinter(printer).pairForERC20(path[i].tokenAddress, path[i + 1].tokenAddress)),
-                    amountOut,
-                    _isERC20Token0(path[i].tokenAddress, path[i - 1].tokenAddress) == true ? 0 : 1
+        for (uint256 i = _path.length - 1; i > 1; ) {
+            amounts[i] = _amountOut;
+            if (_path[i].isERC1155 == false && _path[i - 1].isERC1155 == false) {
+                _amountOut = _getMinAmountIn(
+                    IBook(IPrinter(printer).pairForERC20(_path[i].tokenAddress, _path[i + 1].tokenAddress)),
+                    _amountOut,
+                    _isERC20Token0(_path[i].tokenAddress, _path[i - 1].tokenAddress) == true ? 0 : 1
                 );
-            } else if (path[i].isERC1155 == true && path[i - 1].isERC1155 == true) {
-                amountOut = _getMinAmountIn(
+            } else if (_path[i].isERC1155 == true && _path[i - 1].isERC1155 == true) {
+                _amountOut = _getMinAmountIn(
                     IBook(
                         IPrinter(printer).pairForERC1155(
-                            path[i].tokenAddress,
-                            path[i].id,
-                            path[i - 1].tokenAddress,
-                            path[i - 1].id
+                            _path[i].tokenAddress,
+                            _path[i].id,
+                            _path[i - 1].tokenAddress,
+                            _path[i - 1].id
                         )
                     ),
-                    amountOut,
-                    _isERC1155Token0(path[i].tokenAddress, path[i].id, path[i - 1].tokenAddress, path[i - 1].id) == true
+                    _amountOut,
+                    _isERC1155Token0(_path[i].tokenAddress, _path[i].id, _path[i - 1].tokenAddress, _path[i - 1].id) ==
+                        true
                         ? 1
                         : 0
                 );
-            } else if (path[i].isERC1155 == true && path[i - 1].isERC1155 == false) {
-                amountOut = _getMinAmountIn(
-                    IBook(IPrinter(printer).pairForHybrid(path[i].tokenAddress, path[i].id, path[i - 1].tokenAddress)),
-                    amountOut,
+            } else if (_path[i].isERC1155 == true && _path[i - 1].isERC1155 == false) {
+                _amountOut = _getMinAmountIn(
+                    IBook(
+                        IPrinter(printer).pairForHybrid(_path[i].tokenAddress, _path[i].id, _path[i - 1].tokenAddress)
+                    ),
+                    _amountOut,
                     0
                 );
-            } else if (path[i].isERC1155 == false && path[i - 1].isERC1155 == true) {
-                amountOut = _getMinAmountIn(
+            } else if (_path[i].isERC1155 == false && _path[i - 1].isERC1155 == true) {
+                _amountOut = _getMinAmountIn(
                     IBook(
-                        IPrinter(printer).pairForHybrid(path[i - 1].tokenAddress, path[i - 1].id, path[i].tokenAddress)
+                        IPrinter(printer).pairForHybrid(
+                            _path[i - 1].tokenAddress,
+                            _path[i - 1].id,
+                            _path[i].tokenAddress
+                        )
                     ),
-                    amountOut,
+                    _amountOut,
                     1
                 );
             }
@@ -756,15 +770,19 @@ contract PublicLibrary is IPublicLibrary {
             }
         }
 
-        amounts[0] = amountOut;
+        amounts[0] = _amountOut;
     }
 
-    error InvalidPathArgument();
+    function _uintToAddress(uint256 _v) internal pure returns (address a) {
+        assembly {
+            a := _v
+        }
+    }
 
-    function _pathToTokenDetails(uint256[] calldata path) internal pure returns (TokenDetails[] memory tokenDetails) {
+    function _pathToTokenDetails(uint256[] calldata _path) internal pure returns (TokenDetails[] memory tokenDetails) {
         uint256 count;
-        for (uint256 i; i < path.length; ) {
-            if (path[i] & 1 == 1) {
+        for (uint256 i; i < _path.length; ) {
+            if (_path[i] & 1 == 1) {
                 // erc1155
                 ++i;
             }
@@ -778,24 +796,24 @@ contract PublicLibrary is IPublicLibrary {
         tokenDetails = new TokenDetails[](count);
         count = 0;
 
-        for (uint256 i; i < path.length; ) {
-            if (path[i] & 1 == 1) {
+        for (uint256 i; i < _path.length; ) {
+            if (_path[i] & 1 == 1) {
                 // erc1155
 
-                if (i + 1 == path.length) {
+                if (i + 1 == _path.length) {
                     revert InvalidPathArgument();
                 }
 
                 tokenDetails[count] = TokenDetails({
-                    tokenAddress: address(uint160(path[i] >> 1)),
-                    id: path[i + 1],
+                    tokenAddress: _uintToAddress(_path[i] >> 1),
+                    id: _path[i + 1],
                     isERC1155: true
                 });
 
                 ++i;
             } else {
                 tokenDetails[count] = TokenDetails({
-                    tokenAddress: address(uint160(path[i] >> 1)),
+                    tokenAddress: _uintToAddress(_path[i] >> 1),
                     id: 0,
                     isERC1155: false
                 });
@@ -809,99 +827,105 @@ contract PublicLibrary is IPublicLibrary {
         }
     }
 
-    function _getAddress(TokenDetails memory tokenIn, TokenDetails memory tokenOut) internal view returns (address) {
-        if (tokenIn.isERC1155 != tokenOut.isERC1155) {
-            if (tokenIn.isERC1155 == true) {
-                return IPrinter(printer).pairForHybrid(tokenIn.tokenAddress, tokenIn.id, tokenOut.tokenAddress);
+    function _getAddress(TokenDetails memory _tokenIn, TokenDetails memory _tokenOut) internal view returns (address) {
+        if (_tokenIn.isERC1155 != _tokenOut.isERC1155) {
+            if (_tokenIn.isERC1155 == true) {
+                return IPrinter(printer).pairForHybrid(_tokenIn.tokenAddress, _tokenIn.id, _tokenOut.tokenAddress);
             } else {
-                return IPrinter(printer).pairForHybrid(tokenOut.tokenAddress, tokenOut.id, tokenIn.tokenAddress);
+                return IPrinter(printer).pairForHybrid(_tokenOut.tokenAddress, _tokenOut.id, _tokenIn.tokenAddress);
             }
         } else {
-            if (tokenIn.isERC1155 == true) {
+            if (_tokenIn.isERC1155 == true) {
                 return
                     IPrinter(printer).pairForERC1155(
-                        tokenIn.tokenAddress,
-                        tokenIn.id,
-                        tokenOut.tokenAddress,
-                        tokenOut.id
+                        _tokenIn.tokenAddress,
+                        _tokenIn.id,
+                        _tokenOut.tokenAddress,
+                        _tokenOut.id
                     );
             } else {
-                return IPrinter(printer).pairForERC20(tokenIn.tokenAddress, tokenOut.tokenAddress);
+                return IPrinter(printer).pairForERC20(_tokenIn.tokenAddress, _tokenOut.tokenAddress);
             }
         }
     }
 
     function _executeSwap(
-        IBook book,
-        TokenDetails memory tokenIn,
-        TokenDetails memory tokenOut,
-        uint256 amountOut,
-        address recipient
+        IBook _book,
+        TokenDetails memory _tokenIn,
+        TokenDetails memory _tokenOut,
+        uint256 _amountOut,
+        address _recipient
     ) internal {
-        if (tokenIn.isERC1155 != tokenOut.isERC1155) {
-            if (tokenIn.isERC1155 == true) {
+        if (_tokenIn.isERC1155 != _tokenOut.isERC1155) {
+            if (_tokenIn.isERC1155 == true) {
                 // in is token0
-                book.swap(0, amountOut, recipient, '');
+                _book.swap(0, _amountOut, _recipient, '');
             } else {
                 // out is token0
-                book.swap(amountOut, 0, recipient, '');
+                _book.swap(_amountOut, 0, _recipient, '');
             }
         } else {
-            if (tokenIn.isERC1155 == true) {
+            if (_tokenIn.isERC1155 == true) {
                 // both are 1155
 
-                if (book.token0() == tokenIn.tokenAddress && book.id0() == tokenIn.id) {
+                if (_book.token0() == _tokenIn.tokenAddress && _book.id0() == _tokenIn.id) {
                     // in is token0
-                    book.swap(0, amountOut, recipient, '');
+                    _book.swap(0, _amountOut, _recipient, '');
                 } else {
                     // out is token0
-                    book.swap(amountOut, 0, recipient, '');
+                    _book.swap(_amountOut, 0, _recipient, '');
                 }
             } else {
                 // both are 20
 
-                if (book.token0() == tokenIn.tokenAddress) {
+                if (_book.token0() == _tokenIn.tokenAddress) {
                     // in is token0
-                    book.swap(0, amountOut, recipient, '');
+                    _book.swap(0, _amountOut, _recipient, '');
                 } else {
                     // out is token0
-                    book.swap(amountOut, 0, recipient, '');
+                    _book.swap(_amountOut, 0, _recipient, '');
                 }
             }
         }
     }
 
     function _transfer(
-        TokenDetails memory token,
-        address from,
-        address to,
-        uint256 amount
+        TokenDetails memory _token,
+        address _from,
+        address _to,
+        uint256 _amount
     ) internal {
-        if (token.isERC1155) {
-            IERC1155(token.tokenAddress).safeTransferFrom(from, to, token.id, amount, '');
+        if (_token.isERC1155) {
+            IERC1155(_token.tokenAddress).safeTransferFrom(_from, _to, _token.id, _amount, '');
         } else {
-            IERC20(token.tokenAddress).transferFrom(from, to, amount);
+            IERC20(_token.tokenAddress).transferFrom(_from, _to, _amount);
         }
     }
 
     function _executeSwapPath(
-        TokenDetails[] memory tokenDetails,
-        uint256[] memory amounts,
-        address to
+        TokenDetails[] memory _tokenDetails,
+        uint256[] memory _amounts,
+        address _to
     ) internal {
-        address currentAddress = _getAddress(tokenDetails[0], tokenDetails[1]);
+        address currentAddress = _getAddress(_tokenDetails[0], _tokenDetails[1]);
         address recipientAddress;
 
-        _transfer(tokenDetails[0], msg.sender, currentAddress, amounts[0]);
+        _transfer(_tokenDetails[0], msg.sender, currentAddress, _amounts[0]);
 
-        for (uint256 i; i < tokenDetails.length - 1; ) {
-            if (i + 1 == tokenDetails.length - 1) {
-                recipientAddress = to;
+        for (uint256 i; i < _tokenDetails.length - 1; ) {
+            if (i + 1 == _tokenDetails.length - 1) {
+                recipientAddress = _to;
             } else {
-                recipientAddress = _getAddress(tokenDetails[i + 1], tokenDetails[i + 2]);
+                recipientAddress = _getAddress(_tokenDetails[i + 1], _tokenDetails[i + 2]);
             }
 
-            _executeSwap(IBook(currentAddress), tokenDetails[i], tokenDetails[i + 1], amounts[i + 1], recipientAddress);
+            _executeSwap(
+                IBook(currentAddress),
+                _tokenDetails[i],
+                _tokenDetails[i + 1],
+                _amounts[i + 1],
+                recipientAddress
+            );
 
             currentAddress = recipientAddress;
 

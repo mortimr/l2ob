@@ -37,10 +37,10 @@ interface IBook {
     function settle(address _who, uint256[] calldata _orderIds) external;
 
     function swap(
-        uint256 amount0Out,
-        uint256 amount1Out,
-        address to,
-        bytes memory data
+        uint256 _amount0Out,
+        uint256 _amount1Out,
+        address _to,
+        bytes memory _data
     ) external;
 
     function printer() external view returns (address);

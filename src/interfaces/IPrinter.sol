@@ -13,33 +13,33 @@ interface IPrinter {
         bool _erc1155_1
     );
 
-    function pairForERC20(address, address) external view returns (address);
+    function pairForERC20(address _tokenA, address _tokenB) external view returns (address);
 
     function pairForERC1155(
-        address,
-        uint256,
-        address,
-        uint256
+        address _tokenA,
+        uint256 _idA,
+        address _tokenB,
+        uint256 _idB
     ) external view returns (address);
 
     function pairForHybrid(
-        address,
-        uint256,
-        address
+        address _tokenERC1155,
+        uint256 _id,
+        address _tokenERC20
     ) external view returns (address);
 
-    function createERC20Pair(address, address) external returns (address);
+    function createERC20Pair(address _tokenA, address _tokenB) external returns (address);
 
     function createERC1155Pair(
-        address,
-        uint256,
-        address,
-        uint256
+        address _tokenA,
+        uint256 _idA,
+        address _tokenB,
+        uint256 _idB
     ) external returns (address);
 
     function createHybridPair(
-        address,
-        uint256,
-        address
+        address _tokenERC1155,
+        uint256 _id,
+        address _tokenERC20
     ) external returns (address);
 }

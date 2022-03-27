@@ -2,27 +2,29 @@
 pragma solidity >=0.8.6;
 
 import './ERC1155.sol';
-import './interfaces/IPairBookCaller.sol';
+import './interfaces/IBookCaller.sol';
 import './interfaces/IERC1155.sol';
 import './interfaces/IERC20.sol';
 import './interfaces/IBook.sol';
 
-//                ,   ,
-//     ,   ,     /////|
-//    /////|    ///// |
-//   ///// |   /////  |
-//  |~~~|  |  |~~~|   |
-//  |===|  |  |===|   |
-//  |erc|  |  |erc|   |
-//  | 2 |  |  | 1 |   |
-//  | 0 | /   | 1 |  /
-//  |===|/    | 5 | /
-//  '---'     | 5 |/
-//            '---'
-//
+///                ,   ,
+///     ,   ,     /////|
+///    /////|    ///// |
+///   ///// |   /////  |
+///  |~~~|  |  |~~~|   |
+///  |===|  |  |===|   |
+///  |erc|  |  |erc|   |
+///  | 2 |  |  | 1 |   |
+///  | 0 | /   | 1 |  /
+///  |===|/    | 5 | /
+///  '---'     | 5 |/
+///            '---'
+///
+/// @title A Book that holds two lists of orders
+/// @author Iulian Rotaru
+/// @notice This contract can be used to create / delete / fill orders
+/// @dev This contract should only be called by another contract
 contract Book is ERC1155, IBook {
-    uint256 private unlocked = 2;
-
     address public override printer;
     uint256 public override id0;
     uint256 public override id1;
@@ -50,10 +52,29 @@ contract Book is ERC1155, IBook {
     uint8 internal constant HEAD1 = 2;
     uint8 internal constant TAIL1 = 3;
 
+    uint256 private unlocked = 2;
+
+    modifier lock() {
+        if (unlocked == 1) {
+            revert Locked();
+        }
+        unlocked = 1;
+        _;
+        unlocked = 2;
+    }
+
     constructor() {
         printer = msg.sender;
     }
 
+    /// @notice Initializer called by the Printer contract. Sets the tokens inside the contract
+    /// @dev Only callable once
+    /// @param _token0 Address of token0
+    /// @param _id0 Id of token0. Defined if token0 is an ERC1155 token, else ignored
+    /// @param _erc1155_0 Flag set to true if token0 is and ERC1155 token
+    /// @param _token1 Address of token1
+    /// @param _id1 Id of token1. Defined if token1 is an ERC1155 token, else ignored
+    /// @param _erc1155_1 Flag set to true if token1 is and ERC1155 token
     function initialize(
         address _token0,
         uint256 _id0,
@@ -90,34 +111,37 @@ contract Book is ERC1155, IBook {
         keyOrderIndexes[1] = 0;
         keyOrderIndexes[2] = 0;
         keyOrderIndexes[3] = 0;
+
+        printer = address(1);
     }
 
-    modifier lock() {
-        if (unlocked == 1) {
-            revert Locked();
-        }
-        unlocked = 1;
-        _;
-        unlocked = 2;
-    }
-
+    /// @notice Retrieve order stored at a specific index
+    /// @param _index Index of the order
     function orders(uint64 _index) external view override returns (IBook.Order memory) {
         return _orders[_index];
     }
 
+    /// @notice Retrieve best order to buy token0 / sell token1
     function head0() external view override returns (Order memory) {
         return _orders[keyOrderIndexes[HEAD0]];
     }
 
+    /// @notice Retrieve best order to buy token1 / sell token0
     function head1() external view override returns (Order memory) {
         return _orders[keyOrderIndexes[HEAD1]];
     }
 
-    function balanceOf(address _owner, uint256 _id) external view override returns (uint256) {
-        return _balanceOfComputed(_owner, _id);
+    /// @notice Retrieve the order balance of a user
+    /// @param _owner Address owning the tokens
+    /// @param _orderId ID of the order
+    function balanceOf(address _owner, uint256 _orderId) external view override returns (uint256) {
+        return _balanceOfComputed(_owner, _orderId);
     }
 
-    function balanceOfBatch(address[] memory _owners, uint256[] memory _ids)
+    /// @notice Retrieve the order balance of a user
+    /// @param _owners Addresses owning the tokens
+    /// @param _orderIds IDs of the orders
+    function balanceOfBatch(address[] memory _owners, uint256[] memory _orderIds)
         external
         view
         override
@@ -125,7 +149,7 @@ contract Book is ERC1155, IBook {
     {
         uint256 ownersLength = _owners.length; // Saves MLOADs.
 
-        require(ownersLength == _ids.length, 'LENGTH_MISMATCH');
+        require(ownersLength == _orderIds.length, 'LENGTH_MISMATCH');
 
         _balances = new uint256[](ownersLength);
 
@@ -133,15 +157,26 @@ contract Book is ERC1155, IBook {
         // the array index counter which cannot possibly overflow.
         unchecked {
             for (uint256 i = 0; i < ownersLength; ++i) {
-                _balances[i] = _balanceOfComputed(_owners[i], _ids[i]);
+                _balances[i] = _balanceOfComputed(_owners[i], _orderIds[i]);
             }
         }
     }
 
+    /// @notice Retrieve the URI for a specific orderId
     function uri(uint256) public pure override returns (string memory) {
         return '';
     }
 
+    /// @notice Open a new order position
+    /// @dev If the order already exists for the wanted price, _nextOrderIndex should point to it
+    /// @dev If trying to create the last order of the chain, _nextOrderIndex should be 0
+    /// @dev If trying to create the first and only order of the chain, _nextOrderIndex should be 0
+    /// @dev If the order doesn't exist and the price delta < 0.003% with the surrounding order, call will fail
+    /// @dev The decimal count for the _price value is the sum of the decimals of the two tokens
+    /// @dev Input token should be sent to the contract before the call.
+    /// @param _price Price of the order. Amount * Price => Output amount
+    /// @param _nextOrderIndex Index of the next order in the chain of orders
+    /// @param _to Address receiving the ERC1155 order tokens
     function open(
         uint256 _price,
         uint64 _nextOrderIndex,
@@ -153,10 +188,17 @@ contract Book is ERC1155, IBook {
         _openOrder(_price, _nextOrderIndex, _to);
     }
 
+    /// @notice Closes an order
+    /// @dev Order tokens should be sent to the contract before the call
+    /// @param _orderId ID of the order
+    /// @param _to Address receiving the ERC1155 order tokens
     function close(uint256 _orderId, address _to) external override lock {
         _closeOrder(_orderId, _to);
     }
 
+    /// @notice Redeems any filled amount owner by _who in the provided list of orders
+    /// @param _who Order owner
+    /// @param _orderIds List of orders to settle
     function settle(address _who, uint256[] calldata _orderIds) external override lock {
         for (uint256 i; i < _orderIds.length; ) {
             _clean(_orderIds[i], _who, _who, 0);
@@ -166,44 +208,50 @@ contract Book is ERC1155, IBook {
         }
     }
 
+    /// @notice Performs an optimistic swap (sends funds before checking received balance) that fills as many orders as required to retrieve the needed amounts.
+    /// @dev Flash swaps can be performed by other contracts by providing the extra data parameter and implementing the IBookCaller interface
+    /// @param _amount0Out Amount of token0 to retrieve from the contract
+    /// @param _amount1Out Amount of token1 to retrieve from the contract
+    /// @param _to Address receiving the output tokens
+    /// @param _data Extra data payload forwarded to recipient only if defined
     function swap(
-        uint256 amount0Out,
-        uint256 amount1Out,
-        address to,
-        bytes memory data
+        uint256 _amount0Out,
+        uint256 _amount1Out,
+        address _to,
+        bytes memory _data
     ) external override lock {
         uint256 debt0;
         uint256 debt1;
 
-        if (amount0Out > reserve0 || amount1Out > reserve1) {
+        if (_amount0Out > reserve0 || _amount1Out > reserve1) {
             revert ReserveTooLow();
         }
 
-        (uint256 _amount0Out, uint256 _amount1Out) = (amount0Out, amount1Out);
+        (uint256 __amount0Out, uint256 __amount1Out) = (_amount0Out, _amount1Out);
 
-        if (amount0Out > 0) {
-            IERC20(token0).transfer(to, amount0Out);
+        if (_amount0Out > 0) {
+            IERC20(token0).transfer(_to, _amount0Out);
         }
-        if (amount1Out > 0) {
-            IERC20(token1).transfer(to, amount1Out);
+        if (_amount1Out > 0) {
+            IERC20(token1).transfer(_to, _amount1Out);
         }
 
-        while (_amount0Out > 0 || _amount1Out > 0) {
-            if (_amount0Out > 0) {
+        while (__amount0Out > 0 || __amount1Out > 0) {
+            if (__amount0Out > 0) {
                 uint64 headIndex = _getHeadIndex(0);
                 if (headIndex > 0) {
                     uint256 debt;
-                    (_amount0Out, debt) = _swapFromOrder(headIndex, _amount0Out);
+                    (__amount0Out, debt) = _swapFromOrder(headIndex, __amount0Out);
                     debt1 += debt;
                 } else {
                     revert ReserveTooLow();
                 }
             }
-            if (_amount1Out > 0) {
+            if (__amount1Out > 0) {
                 uint64 headIndex = _getHeadIndex(1);
                 if (headIndex > 0) {
                     uint256 debt;
-                    (_amount1Out, debt) = _swapFromOrder(headIndex, _amount1Out);
+                    (__amount1Out, debt) = _swapFromOrder(headIndex, __amount1Out);
                     debt0 += debt;
                 } else {
                     revert ReserveTooLow();
@@ -211,16 +259,16 @@ contract Book is ERC1155, IBook {
             }
         }
 
-        if (data.length > 0) {
-            IPairBookCaller(to).pairBookCallback(amount0Out, amount1Out, debt0, debt1, msg.sender, data);
+        if (_data.length > 0) {
+            IBookCaller(_to).bookCallback(_amount0Out, _amount1Out, debt0, debt1, msg.sender, _data);
         }
 
         uint256 balance0 = _balance(0, address(this));
         uint256 balance1 = _balance(1, address(this));
 
         if (
-            (reserve0 + debt0 < amount0Out || balance0 < reserve0 + debt0 - amount0Out) ||
-            (reserve1 + debt1 < amount1Out || balance1 < reserve1 + debt1 - amount1Out)
+            (reserve0 + debt0 < _amount0Out || balance0 < reserve0 + debt0 - _amount0Out) ||
+            (reserve1 + debt1 < _amount1Out || balance1 < reserve1 + debt1 - _amount1Out)
         ) {
             revert InvalidBalances();
         }
@@ -230,69 +278,82 @@ contract Book is ERC1155, IBook {
         emit Sync(reserve0, reserve1);
     }
 
+    /// @notice ERC1155 transfer method
+    /// @dev Both balances are brought to the latest untouched round of their orders.
+    /// @param _from Token owner
+    /// @param _to Transfer recipient
+    /// @param _id ERC1155 token id
+    /// @param _amount Amount to transfer
+    /// @param _data Extra data payload to forward to contracts
     function safeTransferFrom(
-        address from,
-        address to,
-        uint256 id,
-        uint256 amount,
-        bytes memory data
+        address _from,
+        address _to,
+        uint256 _id,
+        uint256 _amount,
+        bytes memory _data
     ) public override {
-        require(msg.sender == from || isApprovedForAll[from][msg.sender], 'NOT_AUTHORIZED');
+        require(msg.sender == _from || isApprovedForAll[_from][msg.sender], 'NOT_AUTHORIZED');
 
-        if (id & 1 == 1) {
+        if (_id & 1 == 1) {
             // transferring rewards
-            _clean(id - 1, from, to, amount); // clean balance, and send filled tokens relative to amount sent to recipient
-            _clean(id - 1, to, to, 0); // clean recipient balance
+            _clean(_id - 1, _from, _to, _amount); // clean balance, and send filled tokens relative to amount sent to recipient
+            _clean(_id - 1, _to, _to, 0); // clean recipient balance
         } else {
-            _clean(id, from, from, amount); // clean balance, and send filled tokens relative to amount sent to recipient
-            _clean(id, to, to, 0); // clean recipient balance
+            _clean(_id, _from, _from, _amount); // clean balance, and send filled tokens relative to amount sent to recipient
+            _clean(_id, _to, _to, 0); // clean recipient balance
 
-            _balanceOf[from][id] -= amount;
-            _balanceOf[to][id] += amount;
+            _balanceOf[_from][_id] -= _amount;
+            _balanceOf[_to][_id] += _amount;
 
-            emit TransferSingle(msg.sender, from, to, id, amount);
+            emit TransferSingle(msg.sender, _from, _to, _id, _amount);
 
             require(
-                to.code.length == 0
-                    ? to != address(0)
-                    : to == address(this) ||
-                        ERC1155TokenReceiver(to).onERC1155Received(msg.sender, from, id, amount, data) ==
+                _to.code.length == 0
+                    ? _to != address(0)
+                    : _to == address(this) ||
+                        ERC1155TokenReceiver(_to).onERC1155Received(msg.sender, _from, _id, _amount, _data) ==
                         ERC1155TokenReceiver.onERC1155Received.selector,
                 'UNSAFE_RECIPIENT'
             );
         }
     }
 
+    /// @notice ERC1155 batch transfer method
+    /// @param _from Token owner
+    /// @param _to Transfer recipient
+    /// @param _ids ERC1155 token ids
+    /// @param _amounts Amounts to transfer
+    /// @param _data Extra data payload to forward to contracts
     function safeBatchTransferFrom(
-        address from,
-        address to,
-        uint256[] memory ids,
-        uint256[] memory amounts,
-        bytes memory data
+        address _from,
+        address _to,
+        uint256[] memory _ids,
+        uint256[] memory _amounts,
+        bytes memory _data
     ) public override {
-        uint256 idsLength = ids.length; // Saves MLOADs.
+        uint256 idsLength = _ids.length; // Saves MLOADs.
 
-        require(idsLength == amounts.length, 'LENGTH_MISMATCH');
+        require(idsLength == _amounts.length, 'LENGTH_MISMATCH');
 
-        require(msg.sender == from || isApprovedForAll[from][msg.sender], 'NOT_AUTHORIZED');
+        require(msg.sender == _from || isApprovedForAll[_from][msg.sender], 'NOT_AUTHORIZED');
 
         // Storing these outside the loop saves ~15 gas per iteration.
         uint256 id;
         uint256 amount;
 
         for (uint256 i = 0; i < idsLength; ) {
-            id = ids[i];
-            amount = amounts[i];
+            id = _ids[i];
+            amount = _amounts[i];
             if (id & 1 == 1) {
-                _clean(id - 1, from, to, amount);
-                _clean(id - 1, to, to, 0);
-                amounts[i] = 0;
+                _clean(id - 1, _from, _to, amount);
+                _clean(id - 1, _to, _to, 0);
+                _amounts[i] = 0;
             } else {
-                _clean(id, from, from, amount);
-                _clean(id, to, to, 0);
+                _clean(id, _from, _from, amount);
+                _clean(id, _to, _to, 0);
 
-                _balanceOf[from][id] -= amount;
-                _balanceOf[to][id] += amount;
+                _balanceOf[_from][id] -= amount;
+                _balanceOf[_to][id] += amount;
             }
 
             // An array can't have a total length
@@ -302,13 +363,13 @@ contract Book is ERC1155, IBook {
             }
         }
 
-        emit TransferBatch(msg.sender, from, to, ids, amounts);
+        emit TransferBatch(msg.sender, _from, _to, _ids, _amounts);
 
         require(
-            to.code.length == 0
-                ? to != address(0)
-                : to == address(this) ||
-                    ERC1155TokenReceiver(to).onERC1155BatchReceived(msg.sender, from, ids, amounts, data) ==
+            _to.code.length == 0
+                ? _to != address(0)
+                : _to == address(this) ||
+                    ERC1155TokenReceiver(_to).onERC1155BatchReceived(msg.sender, _from, _ids, _amounts, _data) ==
                     ERC1155TokenReceiver.onERC1155BatchReceived.selector,
             'UNSAFE_RECIPIENT'
         );
@@ -418,28 +479,28 @@ contract Book is ERC1155, IBook {
         }
     }
 
-    function _getHeadIndex(uint8 token) internal view returns (uint64) {
-        if (token == 0) {
+    function _getHeadIndex(uint8 _token) internal view returns (uint64) {
+        if (_token == 0) {
             return keyOrderIndexes[HEAD0];
         } else {
             return keyOrderIndexes[HEAD1];
         }
     }
 
-    function _getTailIndex(uint8 token) internal view returns (uint64) {
-        if (token == 0) {
+    function _getTailIndex(uint8 _token) internal view returns (uint64) {
+        if (_token == 0) {
             return keyOrderIndexes[TAIL0];
         } else {
             return keyOrderIndexes[TAIL1];
         }
     }
 
-    function _getAmountIn(uint256 amountOut, uint256 price) internal view returns (uint256) {
-        return ((amountOut * (10**(decimals0 + decimals1))) / price);
+    function _getAmountIn(uint256 _amountOut, uint256 _price) internal view returns (uint256) {
+        return ((_amountOut * (10**(decimals0 + decimals1))) / _price);
     }
 
-    function _getAmountOut(uint256 amountIn, uint256 price) internal view returns (uint256) {
-        return (amountIn * price) / 10**(decimals0 + decimals1);
+    function _getAmountOut(uint256 _amountIn, uint256 _price) internal view returns (uint256) {
+        return (_amountIn * _price) / 10**(decimals0 + decimals1);
     }
 
     function _transferOut(
@@ -462,19 +523,19 @@ contract Book is ERC1155, IBook {
         }
     }
 
-    function _setHeadIndex(uint8 token, uint64 idx) internal {
-        if (token == 0) {
-            keyOrderIndexes[HEAD0] = idx;
+    function _setHeadIndex(uint8 _token, uint64 _idx) internal {
+        if (_token == 0) {
+            keyOrderIndexes[HEAD0] = _idx;
         } else {
-            keyOrderIndexes[HEAD1] = idx;
+            keyOrderIndexes[HEAD1] = _idx;
         }
     }
 
-    function _setTailIndex(uint8 token, uint64 idx) internal {
-        if (token == 0) {
-            keyOrderIndexes[TAIL0] = idx;
+    function _setTailIndex(uint8 _token, uint64 _idx) internal {
+        if (_token == 0) {
+            keyOrderIndexes[TAIL0] = _idx;
         } else {
-            keyOrderIndexes[TAIL1] = idx;
+            keyOrderIndexes[TAIL1] = _idx;
         }
     }
 
@@ -836,61 +897,61 @@ contract Book is ERC1155, IBook {
     }
 
     function _consumeFromOrderPartialLiq(
-        Order memory order,
-        uint64 orderIndex,
-        uint256 amountOut
+        Order memory _order,
+        uint64 _orderIndex,
+        uint256 _amountOut
     ) internal returns (uint256 amountOutLeft, uint256 debt) {
-        uint256 orderId = _getOrderId(order.token, order.price);
-        _orders[orderIndex].remainingLiquidity -= amountOut;
+        uint256 orderId = _getOrderId(_order.token, _order.price);
+        _orders[_orderIndex].remainingLiquidity -= _amountOut;
 
         amountOutLeft = 0;
-        debt = _getAmountIn(amountOut, order.price);
+        debt = _getAmountIn(_amountOut, _order.price);
 
         emit OrderChanged(
             orderId,
-            _orders[orderIndex].liquidity,
-            _orders[orderIndex].remainingLiquidity,
-            _orders[orderIndex].nextLiquidity
+            _orders[_orderIndex].liquidity,
+            _orders[_orderIndex].remainingLiquidity,
+            _orders[_orderIndex].nextLiquidity
         );
     }
 
     function _consumeFromOrderNextLiq(
-        Order memory order,
-        uint64 orderIndex,
-        uint256 amountOut
+        Order memory _order,
+        uint64 _orderIndex,
+        uint256 _amountOut
     ) internal returns (uint256 amountOutLeft, uint256 debt) {
-        uint256 orderId = _getOrderId(order.token, order.price);
-        if (amountOut >= order.nextLiquidity) {
-            amountOutLeft = amountOut - order.nextLiquidity;
-            debt = _getAmountIn(order.nextLiquidity + _orders[orderIndex].remainingLiquidity, order.price);
+        uint256 orderId = _getOrderId(_order.token, _order.price);
+        if (_amountOut >= _order.nextLiquidity) {
+            amountOutLeft = _amountOut - _order.nextLiquidity;
+            debt = _getAmountIn(_order.nextLiquidity + _orders[_orderIndex].remainingLiquidity, _order.price);
 
-            _removeOrder(_getOrderId(order.token, order.price), orderIndex);
+            _removeOrder(_getOrderId(_order.token, _order.price), _orderIndex);
         } else {
-            debt = _getAmountIn(amountOut + _orders[orderIndex].remainingLiquidity, order.price);
-            _orders[orderIndex].remainingLiquidity = _orders[orderIndex].nextLiquidity - amountOut;
-            _orders[orderIndex].liquidity = _orders[orderIndex].nextLiquidity;
+            debt = _getAmountIn(_amountOut + _orders[_orderIndex].remainingLiquidity, _order.price);
+            _orders[_orderIndex].remainingLiquidity = _orders[_orderIndex].nextLiquidity - _amountOut;
+            _orders[_orderIndex].liquidity = _orders[_orderIndex].nextLiquidity;
             orderRounds[orderId] += 1;
-            _orders[orderIndex].nextLiquidity = 0;
+            _orders[_orderIndex].nextLiquidity = 0;
 
             amountOutLeft = 0;
 
-            emit OrderChanged(orderId, _orders[orderIndex].liquidity, _orders[orderIndex].remainingLiquidity, 0);
+            emit OrderChanged(orderId, _orders[_orderIndex].liquidity, _orders[_orderIndex].remainingLiquidity, 0);
         }
     }
 
-    function _swapFromOrder(uint64 firstOrderIndex, uint256 amountOut)
+    function _swapFromOrder(uint64 _firstOrderIndex, uint256 _amountOut)
         internal
         returns (
             uint256, /* amountOutLeft */
             uint256 /* debt */
         )
     {
-        Order memory order = _orders[firstOrderIndex];
+        Order memory order = _orders[_firstOrderIndex];
         uint256 availableLiquidity = order.remainingLiquidity;
-        if (amountOut >= availableLiquidity) {
-            return _consumeFromOrderNextLiq(order, firstOrderIndex, amountOut - availableLiquidity);
+        if (_amountOut >= availableLiquidity) {
+            return _consumeFromOrderNextLiq(order, _firstOrderIndex, _amountOut - availableLiquidity);
         } else {
-            return _consumeFromOrderPartialLiq(order, firstOrderIndex, amountOut);
+            return _consumeFromOrderPartialLiq(order, _firstOrderIndex, _amountOut);
         }
     }
 }
