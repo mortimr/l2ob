@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.6;
 
-import './ERC1155.sol';
+import './Token.sol';
 import './interfaces/IBookCaller.sol';
 import './interfaces/IERC1155.sol';
 import './interfaces/IERC20.sol';
@@ -24,7 +24,7 @@ import './interfaces/IBook.sol';
 /// @author Iulian Rotaru
 /// @notice This contract can be used to create / delete / fill orders
 /// @dev This contract should only be called by another contract
-contract Book is ERC1155, IBook {
+contract Book is Token, IBook {
     address public override printer;
     uint256 public override id0;
     uint256 public override id1;
@@ -311,8 +311,8 @@ contract Book is ERC1155, IBook {
                 _to.code.length == 0
                     ? _to != address(0)
                     : _to == address(this) ||
-                        ERC1155TokenReceiver(_to).onERC1155Received(msg.sender, _from, _id, _amount, _data) ==
-                        ERC1155TokenReceiver.onERC1155Received.selector,
+                        TokenReceiver(_to).onERC1155Received(msg.sender, _from, _id, _amount, _data) ==
+                        TokenReceiver.onERC1155Received.selector,
                 'UNSAFE_RECIPIENT'
             );
         }
@@ -369,8 +369,8 @@ contract Book is ERC1155, IBook {
             _to.code.length == 0
                 ? _to != address(0)
                 : _to == address(this) ||
-                    ERC1155TokenReceiver(_to).onERC1155BatchReceived(msg.sender, _from, _ids, _amounts, _data) ==
-                    ERC1155TokenReceiver.onERC1155BatchReceived.selector,
+                    TokenReceiver(_to).onERC1155BatchReceived(msg.sender, _from, _ids, _amounts, _data) ==
+                    TokenReceiver.onERC1155BatchReceived.selector,
             'UNSAFE_RECIPIENT'
         );
     }
@@ -824,7 +824,7 @@ contract Book is ERC1155, IBook {
         uint256 _id,
         uint256 _amount
     ) internal {
-        ERC1155._mint(_to, _id, _amount, '');
+        Token._mint(_to, _id, _amount, '');
         totalSupply[_id] += _amount;
     }
 
@@ -833,7 +833,7 @@ contract Book is ERC1155, IBook {
         uint256 _id,
         uint256 _amount
     ) internal {
-        ERC1155._burn(_from, _id, _amount);
+        Token._burn(_from, _id, _amount);
         totalSupply[_id] -= _amount;
     }
 

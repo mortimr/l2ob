@@ -2,9 +2,9 @@
 pragma solidity >=0.8.6;
 
 interface IPrinter {
-    error PairAlreadyExists();
+    error BookAlreadyExists();
     error InvalidTokens();
-    event PairCreated(
+    event BookCreated(
         address indexed _token0,
         address indexed _token1,
         uint256 _id0,
@@ -13,31 +13,31 @@ interface IPrinter {
         bool _erc1155_1
     );
 
-    function pairForERC20(address _tokenA, address _tokenB) external view returns (address);
+    function bookForERC20(address _tokenA, address _tokenB) external view returns (address);
 
-    function pairForERC1155(
+    function bookForERC1155(
         address _tokenA,
         uint256 _idA,
         address _tokenB,
         uint256 _idB
     ) external view returns (address);
 
-    function pairForHybrid(
+    function bookForHybrid(
         address _tokenERC1155,
         uint256 _id,
         address _tokenERC20
     ) external view returns (address);
 
-    function createERC20Pair(address _tokenA, address _tokenB) external returns (address);
+    function createERC20Book(address _tokenA, address _tokenB) external returns (address);
 
-    function createERC1155Pair(
+    function createERC1155Book(
         address _tokenA,
         uint256 _idA,
         address _tokenB,
         uint256 _idB
     ) external returns (address);
 
-    function createHybridPair(
+    function createHybridBook(
         address _tokenERC1155,
         uint256 _id,
         address _tokenERC20

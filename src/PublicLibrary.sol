@@ -47,7 +47,7 @@ contract PublicLibrary is IPublicLibrary {
     ) external view override returns (uint256) {
         return
             _getMinAmountIn(
-                IBook(IPrinter(printer).pairForERC20(_tokenIn, _tokenOut)),
+                IBook(IPrinter(printer).bookForERC20(_tokenIn, _tokenOut)),
                 _amountOut,
                 _isERC20Token0(_tokenOut, _tokenIn) == true ? 0 : 1
             );
@@ -60,7 +60,7 @@ contract PublicLibrary is IPublicLibrary {
     ) external view override returns (uint256) {
         return
             _getMaxAmountOut(
-                IBook(IPrinter(printer).pairForERC20(_tokenIn, _tokenOut)),
+                IBook(IPrinter(printer).bookForERC20(_tokenIn, _tokenOut)),
                 _amountIn,
                 _isERC20Token0(_tokenOut, _tokenIn) == true ? 0 : 1
             );
@@ -73,10 +73,10 @@ contract PublicLibrary is IPublicLibrary {
         uint256 _amount,
         uint64 _nextOrderIndex
     ) external override returns (address book, uint256 orderId) {
-        book = IPrinter(printer).pairForERC20(_tokenIn, _tokenOut);
+        book = IPrinter(printer).bookForERC20(_tokenIn, _tokenOut);
 
         if (book == address(0)) {
-            book = IPrinter(printer).createERC20Pair(_tokenIn, _tokenOut);
+            book = IPrinter(printer).createERC20Book(_tokenIn, _tokenOut);
         }
 
         IERC20(_tokenIn).transferFrom(msg.sender, address(book), _amount);
@@ -97,7 +97,7 @@ contract PublicLibrary is IPublicLibrary {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForERC20(_tokenIn, _tokenOut));
+        IBook book = IBook(IPrinter(printer).bookForERC20(_tokenIn, _tokenOut));
         bool tokenOutIsToken0 = _tokenOut < _tokenIn;
         amountOut = _getMaxAmountOut(book, _amountIn, tokenOutIsToken0 ? 0 : 1);
 
@@ -121,7 +121,7 @@ contract PublicLibrary is IPublicLibrary {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForERC20(_tokenIn, _tokenOut));
+        IBook book = IBook(IPrinter(printer).bookForERC20(_tokenIn, _tokenOut));
         bool tokenOutIsToken0 = _tokenOut < _tokenIn;
         amountIn = _getMinAmountIn(book, _amountOut, tokenOutIsToken0 ? 0 : 1);
 
@@ -148,7 +148,7 @@ contract PublicLibrary is IPublicLibrary {
         uint256 _idOut,
         uint256 _amountOut
     ) external view override returns (uint256) {
-        return _getMinAmountIn(IBook(IPrinter(printer).pairForHybrid(_tokenOut, _idOut, _tokenIn)), _amountOut, 0);
+        return _getMinAmountIn(IBook(IPrinter(printer).bookForHybrid(_tokenOut, _idOut, _tokenIn)), _amountOut, 0);
     }
 
     function getERC20ToERC1155AmountOut(
@@ -157,7 +157,7 @@ contract PublicLibrary is IPublicLibrary {
         uint256 _idOut,
         uint256 _amountIn
     ) external view override returns (uint256) {
-        return _getMaxAmountOut(IBook(IPrinter(printer).pairForHybrid(_tokenOut, _idOut, _tokenIn)), _amountIn, 0);
+        return _getMaxAmountOut(IBook(IPrinter(printer).bookForHybrid(_tokenOut, _idOut, _tokenIn)), _amountIn, 0);
     }
 
     function openERC20ToERC1155Order(
@@ -168,10 +168,10 @@ contract PublicLibrary is IPublicLibrary {
         uint256 _amount,
         uint64 _nextOrderIndex
     ) external override returns (address book, uint256 orderId) {
-        book = IPrinter(printer).pairForHybrid(_tokenOut, _idOut, _tokenIn);
+        book = IPrinter(printer).bookForHybrid(_tokenOut, _idOut, _tokenIn);
 
         if (book == address(0)) {
-            book = IPrinter(printer).createHybridPair(_tokenOut, _idOut, _tokenIn);
+            book = IPrinter(printer).createHybridBook(_tokenOut, _idOut, _tokenIn);
         }
 
         IERC20(_tokenIn).transferFrom(msg.sender, address(book), _amount);
@@ -193,7 +193,7 @@ contract PublicLibrary is IPublicLibrary {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForHybrid(_tokenOut, _idOut, _tokenIn));
+        IBook book = IBook(IPrinter(printer).bookForHybrid(_tokenOut, _idOut, _tokenIn));
         amountOut = _getMaxAmountOut(book, _amountIn, 0);
 
         if (amountOut < _amountOutMin) {
@@ -217,7 +217,7 @@ contract PublicLibrary is IPublicLibrary {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForHybrid(_tokenOut, _idOut, _tokenIn));
+        IBook book = IBook(IPrinter(printer).bookForHybrid(_tokenOut, _idOut, _tokenIn));
         amountIn = _getMinAmountIn(book, _amountOut, 0);
 
         if (amountIn > _amountInMax) {
@@ -243,7 +243,7 @@ contract PublicLibrary is IPublicLibrary {
         address _tokenOut,
         uint256 _amountOut
     ) external view override returns (uint256) {
-        return _getMinAmountIn(IBook(IPrinter(printer).pairForHybrid(_tokenIn, _idIn, _tokenOut)), _amountOut, 1);
+        return _getMinAmountIn(IBook(IPrinter(printer).bookForHybrid(_tokenIn, _idIn, _tokenOut)), _amountOut, 1);
     }
 
     function getERC155ToERC20AmountOut(
@@ -252,7 +252,7 @@ contract PublicLibrary is IPublicLibrary {
         address _tokenOut,
         uint256 _amountIn
     ) external view override returns (uint256) {
-        return _getMaxAmountOut(IBook(IPrinter(printer).pairForHybrid(_tokenIn, _idIn, _tokenOut)), _amountIn, 1);
+        return _getMaxAmountOut(IBook(IPrinter(printer).bookForHybrid(_tokenIn, _idIn, _tokenOut)), _amountIn, 1);
     }
 
     function openERC1155ToERC20Order(
@@ -263,10 +263,10 @@ contract PublicLibrary is IPublicLibrary {
         uint256 _amount,
         uint64 _nextOrderIndex
     ) external override returns (address book, uint256 orderId) {
-        book = IPrinter(printer).pairForHybrid(_tokenIn, _idIn, _tokenOut);
+        book = IPrinter(printer).bookForHybrid(_tokenIn, _idIn, _tokenOut);
 
         if (book == address(0)) {
-            book = IPrinter(printer).createHybridPair(_tokenIn, _idIn, _tokenOut);
+            book = IPrinter(printer).createHybridBook(_tokenIn, _idIn, _tokenOut);
         }
 
         IERC1155(_tokenIn).safeTransferFrom(msg.sender, address(book), _idIn, _amount, '');
@@ -288,7 +288,7 @@ contract PublicLibrary is IPublicLibrary {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForHybrid(_tokenIn, _idIn, _tokenOut));
+        IBook book = IBook(IPrinter(printer).bookForHybrid(_tokenIn, _idIn, _tokenOut));
         amountOut = _getMaxAmountOut(book, _amountIn, 1);
 
         if (amountOut < _amountOutMin) {
@@ -312,7 +312,7 @@ contract PublicLibrary is IPublicLibrary {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForHybrid(_tokenIn, _idIn, _tokenOut));
+        IBook book = IBook(IPrinter(printer).bookForHybrid(_tokenIn, _idIn, _tokenOut));
         amountIn = _getMinAmountIn(book, _amountOut, 1);
 
         if (amountIn > _amountInMax) {
@@ -341,7 +341,7 @@ contract PublicLibrary is IPublicLibrary {
     ) external view override returns (uint256) {
         return
             _getMinAmountIn(
-                IBook(IPrinter(printer).pairForERC1155(_tokenIn, _idIn, _tokenOut, _idOut)),
+                IBook(IPrinter(printer).bookForERC1155(_tokenIn, _idIn, _tokenOut, _idOut)),
                 _amountOut,
                 _isERC1155Token0(_tokenOut, _idOut, _tokenIn, _idIn) == true ? 0 : 1
             );
@@ -356,7 +356,7 @@ contract PublicLibrary is IPublicLibrary {
     ) external view override returns (uint256) {
         return
             _getMaxAmountOut(
-                IBook(IPrinter(printer).pairForERC1155(_tokenIn, _idIn, _tokenOut, _idOut)),
+                IBook(IPrinter(printer).bookForERC1155(_tokenIn, _idIn, _tokenOut, _idOut)),
                 _amountIn,
                 _isERC1155Token0(_tokenOut, _idOut, _tokenIn, _idIn) == true ? 0 : 1
             );
@@ -371,10 +371,10 @@ contract PublicLibrary is IPublicLibrary {
         uint256 _amount,
         uint64 _nextOrderIndex
     ) external override returns (address book, uint256 orderId) {
-        book = IPrinter(printer).pairForERC1155(_tokenIn, _idIn, _tokenOut, _idOut);
+        book = IPrinter(printer).bookForERC1155(_tokenIn, _idIn, _tokenOut, _idOut);
 
         if (book == address(0)) {
-            book = IPrinter(printer).createERC1155Pair(_tokenIn, _idIn, _tokenOut, _idOut);
+            book = IPrinter(printer).createERC1155Book(_tokenIn, _idIn, _tokenOut, _idOut);
         }
 
         IERC1155(_tokenIn).safeTransferFrom(msg.sender, address(book), _idIn, _amount, '');
@@ -401,7 +401,7 @@ contract PublicLibrary is IPublicLibrary {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForERC1155(_tokenIn, _idIn, _tokenOut, _idOut));
+        IBook book = IBook(IPrinter(printer).bookForERC1155(_tokenIn, _idIn, _tokenOut, _idOut));
         bool tokenOutIsToken0 = _tokenOut == _tokenIn ? _idOut < _idIn : _tokenOut < _tokenIn;
         amountOut = _getMaxAmountOut(book, _amountIn, tokenOutIsToken0 ? 0 : 1);
 
@@ -427,7 +427,7 @@ contract PublicLibrary is IPublicLibrary {
             revert DeadlineCrossed();
         }
 
-        IBook book = IBook(IPrinter(printer).pairForERC1155(_tokenIn, _idIn, _tokenOut, _idOut));
+        IBook book = IBook(IPrinter(printer).bookForERC1155(_tokenIn, _idIn, _tokenOut, _idOut));
         bool tokenOutIsToken0 = _tokenOut == _tokenIn ? _idOut < _idIn : _tokenOut < _tokenIn;
         amountIn = _getMinAmountIn(book, _amountOut, tokenOutIsToken0 ? 0 : 1);
 
@@ -663,14 +663,14 @@ contract PublicLibrary is IPublicLibrary {
             amounts[i] = _amountIn;
             if (_path[i].isERC1155 == false && _path[i + 1].isERC1155 == false) {
                 _amountIn = _getMaxAmountOut(
-                    IBook(IPrinter(printer).pairForERC20(_path[i].tokenAddress, _path[i + 1].tokenAddress)),
+                    IBook(IPrinter(printer).bookForERC20(_path[i].tokenAddress, _path[i + 1].tokenAddress)),
                     _amountIn,
                     _isERC20Token0(_path[i].tokenAddress, _path[i + 1].tokenAddress) == true ? 1 : 0
                 );
             } else if (_path[i].isERC1155 == true && _path[i + 1].isERC1155 == true) {
                 _amountIn = _getMaxAmountOut(
                     IBook(
-                        IPrinter(printer).pairForERC1155(
+                        IPrinter(printer).bookForERC1155(
                             _path[i].tokenAddress,
                             _path[i].id,
                             _path[i + 1].tokenAddress,
@@ -686,7 +686,7 @@ contract PublicLibrary is IPublicLibrary {
             } else if (_path[i].isERC1155 == true && _path[i + 1].isERC1155 == false) {
                 _amountIn = _getMaxAmountOut(
                     IBook(
-                        IPrinter(printer).pairForHybrid(_path[i].tokenAddress, _path[i].id, _path[i + 1].tokenAddress)
+                        IPrinter(printer).bookForHybrid(_path[i].tokenAddress, _path[i].id, _path[i + 1].tokenAddress)
                     ),
                     _amountIn,
                     1
@@ -694,7 +694,7 @@ contract PublicLibrary is IPublicLibrary {
             } else if (_path[i].isERC1155 == false && _path[i + 1].isERC1155 == true) {
                 _amountIn = _getMaxAmountOut(
                     IBook(
-                        IPrinter(printer).pairForHybrid(
+                        IPrinter(printer).bookForHybrid(
                             _path[i + 1].tokenAddress,
                             _path[i + 1].id,
                             _path[i].tokenAddress
@@ -724,14 +724,14 @@ contract PublicLibrary is IPublicLibrary {
             amounts[i] = _amountOut;
             if (_path[i].isERC1155 == false && _path[i - 1].isERC1155 == false) {
                 _amountOut = _getMinAmountIn(
-                    IBook(IPrinter(printer).pairForERC20(_path[i].tokenAddress, _path[i + 1].tokenAddress)),
+                    IBook(IPrinter(printer).bookForERC20(_path[i].tokenAddress, _path[i + 1].tokenAddress)),
                     _amountOut,
                     _isERC20Token0(_path[i].tokenAddress, _path[i - 1].tokenAddress) == true ? 0 : 1
                 );
             } else if (_path[i].isERC1155 == true && _path[i - 1].isERC1155 == true) {
                 _amountOut = _getMinAmountIn(
                     IBook(
-                        IPrinter(printer).pairForERC1155(
+                        IPrinter(printer).bookForERC1155(
                             _path[i].tokenAddress,
                             _path[i].id,
                             _path[i - 1].tokenAddress,
@@ -747,7 +747,7 @@ contract PublicLibrary is IPublicLibrary {
             } else if (_path[i].isERC1155 == true && _path[i - 1].isERC1155 == false) {
                 _amountOut = _getMinAmountIn(
                     IBook(
-                        IPrinter(printer).pairForHybrid(_path[i].tokenAddress, _path[i].id, _path[i - 1].tokenAddress)
+                        IPrinter(printer).bookForHybrid(_path[i].tokenAddress, _path[i].id, _path[i - 1].tokenAddress)
                     ),
                     _amountOut,
                     0
@@ -755,7 +755,7 @@ contract PublicLibrary is IPublicLibrary {
             } else if (_path[i].isERC1155 == false && _path[i - 1].isERC1155 == true) {
                 _amountOut = _getMinAmountIn(
                     IBook(
-                        IPrinter(printer).pairForHybrid(
+                        IPrinter(printer).bookForHybrid(
                             _path[i - 1].tokenAddress,
                             _path[i - 1].id,
                             _path[i].tokenAddress
@@ -830,21 +830,21 @@ contract PublicLibrary is IPublicLibrary {
     function _getAddress(TokenDetails memory _tokenIn, TokenDetails memory _tokenOut) internal view returns (address) {
         if (_tokenIn.isERC1155 != _tokenOut.isERC1155) {
             if (_tokenIn.isERC1155 == true) {
-                return IPrinter(printer).pairForHybrid(_tokenIn.tokenAddress, _tokenIn.id, _tokenOut.tokenAddress);
+                return IPrinter(printer).bookForHybrid(_tokenIn.tokenAddress, _tokenIn.id, _tokenOut.tokenAddress);
             } else {
-                return IPrinter(printer).pairForHybrid(_tokenOut.tokenAddress, _tokenOut.id, _tokenIn.tokenAddress);
+                return IPrinter(printer).bookForHybrid(_tokenOut.tokenAddress, _tokenOut.id, _tokenIn.tokenAddress);
             }
         } else {
             if (_tokenIn.isERC1155 == true) {
                 return
-                    IPrinter(printer).pairForERC1155(
+                    IPrinter(printer).bookForERC1155(
                         _tokenIn.tokenAddress,
                         _tokenIn.id,
                         _tokenOut.tokenAddress,
                         _tokenOut.id
                     );
             } else {
-                return IPrinter(printer).pairForERC20(_tokenIn.tokenAddress, _tokenOut.tokenAddress);
+                return IPrinter(printer).bookForERC20(_tokenIn.tokenAddress, _tokenOut.tokenAddress);
             }
         }
     }

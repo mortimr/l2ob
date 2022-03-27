@@ -5,9 +5,9 @@ import 'solmate/test/utils/DSTestPlus.sol';
 import 'solmate/tokens/ERC20.sol';
 import 'forge-std/Vm.sol';
 
-import './console.sol';
+import './test/console.sol';
 
-import '../Book.sol';
+import './Book.sol';
 
 contract ERC20Mock is ERC20 {
     constructor(

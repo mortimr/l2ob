@@ -3,7 +3,8 @@ pragma solidity >=0.8.0;
 
 /// @notice Minimalist and gas efficient standard ERC1155 implementation. Modifier to allow balanceOf custom logics
 /// @author Solmate (https://github.com/Rari-Capital/solmate/blob/main/src/tokens/ERC1155.sol)
-abstract contract ERC1155 {
+abstract contract Token {
+    /*ERC155*/
     /*///////////////////////////////////////////////////////////////
                                 EVENTS
     //////////////////////////////////////////////////////////////*/
@@ -104,8 +105,8 @@ abstract contract ERC1155 {
         require(
             to.code.length == 0
                 ? to != address(0)
-                : ERC1155TokenReceiver(to).onERC1155Received(msg.sender, address(0), id, amount, data) ==
-                    ERC1155TokenReceiver.onERC1155Received.selector,
+                : TokenReceiver(to).onERC1155Received(msg.sender, address(0), id, amount, data) ==
+                    TokenReceiver.onERC1155Received.selector,
             'UNSAFE_RECIPIENT'
         );
     }
@@ -135,8 +136,8 @@ abstract contract ERC1155 {
         require(
             to.code.length == 0
                 ? to != address(0)
-                : ERC1155TokenReceiver(to).onERC1155BatchReceived(msg.sender, address(0), ids, amounts, data) ==
-                    ERC1155TokenReceiver.onERC1155BatchReceived.selector,
+                : TokenReceiver(to).onERC1155BatchReceived(msg.sender, address(0), ids, amounts, data) ==
+                    TokenReceiver.onERC1155BatchReceived.selector,
             'UNSAFE_RECIPIENT'
         );
     }
@@ -176,7 +177,8 @@ abstract contract ERC1155 {
 
 /// @notice A generic interface for a contract which properly accepts ERC1155 tokens.
 /// @author Solmate (https://github.com/Rari-Capital/solmate/blob/main/src/tokens/ERC1155.sol)
-interface ERC1155TokenReceiver {
+interface TokenReceiver {
+    /*Token*/
     function onERC1155Received(
         address operator,
         address from,
