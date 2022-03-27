@@ -63,22 +63,14 @@ contract BookTest is DSTestPlus {
             assert(pb.keyOrderIndexes(1) == 1);
         }
         {
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(price == 10**(18 + 6));
-            assert(token == 0);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 100 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 0);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
         }
     }
 
@@ -97,22 +89,14 @@ contract BookTest is DSTestPlus {
             assert(pb.keyOrderIndexes(3) == 1);
         }
         {
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(price == 10**(18 + 6));
-            assert(token == 1);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 100 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 1);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
         }
     }
 
@@ -121,9 +105,9 @@ contract BookTest is DSTestPlus {
         uint64 orderIndex,
         uint64 arrayIndex
     ) internal view {
-        (uint64 prev, uint64 next, , , , , ) = pb.orders(orderIndex);
-        assert(prev == indexes[arrayIndex]);
-        assert(next == indexes[arrayIndex + 1]);
+        IBook.Order memory order = pb.orders(orderIndex);
+        assert(order.prev == indexes[arrayIndex]);
+        assert(order.next == indexes[arrayIndex + 1]);
     }
 
     function testOpenFiveAndCloseOrdersT0() public {
@@ -431,22 +415,14 @@ contract BookTest is DSTestPlus {
             assert(pb.keyOrderIndexes(1) == 1);
         }
         {
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 0);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 100 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 0);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
         }
         {
             uint256 amount1In = (orderSize * price) / (10**(18 + 6));
@@ -482,22 +458,14 @@ contract BookTest is DSTestPlus {
             assert(pb.keyOrderIndexes(3) == 1);
         }
         {
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 1);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 100 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 1);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
         }
         {
             uint256 amount0In = (orderSize * price) / (10**(18 + 6));
@@ -547,42 +515,26 @@ contract BookTest is DSTestPlus {
             vm.stopPrank();
         }
         {
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 2);
-            assert(next == 0);
-            assert(_price == price0);
-            assert(token == 1);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 100 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 2);
+            assert(order.next == 0);
+            assert(order.price == price0);
+            assert(order.token == 1);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(order0) == 0);
             assert(pb.rounds(bob, order0) == 0);
         }
         {
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(2);
-            assert(prev == 0);
-            assert(next == 1);
-            assert(_price == price1);
-            assert(token == 1);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 100 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(2);
+            assert(order.prev == 0);
+            assert(order.next == 1);
+            assert(order.price == price1);
+            assert(order.token == 1);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(order1) == 0);
             assert(pb.rounds(bob, order1) == 0);
         }
@@ -638,43 +590,27 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = price0 << 2;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 2);
-            assert(next == 0);
-            assert(_price == price0);
-            assert(token == 0);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 100 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 2);
+            assert(order.next == 0);
+            assert(order.price == price0);
+            assert(order.token == 0);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
         }
         {
             uint256 orderId = price1 << 2;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(2);
-            assert(prev == 0);
-            assert(next == 1);
-            assert(_price == price1);
-            assert(token == 0);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 100 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(2);
+            assert(order.prev == 0);
+            assert(order.next == 1);
+            assert(order.price == price1);
+            assert(order.token == 0);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
         }
@@ -719,22 +655,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = (10**(18 + 6)) << 2;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 0);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 100 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 0);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
         }
@@ -759,22 +687,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = (10**(18 + 6)) << 2;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 0);
-            assert(liquidity == 50 ether);
-            assert(remainingLiquidity == 50 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 0);
+            assert(order.liquidity == 50 ether);
+            assert(order.remainingLiquidity == 50 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 1);
             assert(pb.rounds(bob, orderId) == 1);
         }
@@ -790,22 +710,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = (10**(18 + 6)) << 2;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 0);
-            assert(liquidity == 150 ether);
-            assert(remainingLiquidity == 150 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 0);
+            assert(order.liquidity == 150 ether);
+            assert(order.remainingLiquidity == 150 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 1);
             assert(pb.rounds(bob, orderId) == 1);
             assert(pb.rounds(alice, orderId) == 1);
@@ -836,22 +748,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = (10**(18 + 6)) << 2;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 0);
-            assert(liquidity == 50 ether);
-            assert(remainingLiquidity == 16666666666666666666);
-            assert(nextLiquidity == 33333333333333333334);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 0);
+            assert(order.liquidity == 50 ether);
+            assert(order.remainingLiquidity == 16666666666666666666);
+            assert(order.nextLiquidity == 33333333333333333334);
             assert(pb.orderRounds(orderId) == 1);
             assert(pb.rounds(bob, orderId) == 1);
             assert(pb.rounds(alice, orderId) == 2);
@@ -873,22 +777,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = ((price << 1) + 1) << 1;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 1);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 100 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 1);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
         }
@@ -913,22 +809,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = ((price << 1) + 1) << 1;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 1);
-            assert(liquidity == 50 ether);
-            assert(remainingLiquidity == 50 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 1);
+            assert(order.liquidity == 50 ether);
+            assert(order.remainingLiquidity == 50 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 1);
             assert(pb.rounds(bob, orderId) == 1);
         }
@@ -944,22 +832,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = ((price << 1) + 1) << 1;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 1);
-            assert(liquidity == 150 ether);
-            assert(remainingLiquidity == 150 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 1);
+            assert(order.liquidity == 150 ether);
+            assert(order.remainingLiquidity == 150 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 1);
             assert(pb.rounds(bob, orderId) == 1);
             assert(pb.rounds(alice, orderId) == 1);
@@ -990,22 +870,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = ((price << 1) + 1) << 1;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 1);
-            assert(liquidity == 50 ether);
-            assert(remainingLiquidity == 16666666666666666666);
-            assert(nextLiquidity == 33333333333333333334);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 1);
+            assert(order.liquidity == 50 ether);
+            assert(order.remainingLiquidity == 16666666666666666666);
+            assert(order.nextLiquidity == 33333333333333333334);
             assert(pb.orderRounds(orderId) == 1);
             assert(pb.rounds(bob, orderId) == 1);
             assert(pb.rounds(alice, orderId) == 2);
@@ -1027,22 +899,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = (10**(18 + 6)) << 2;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 0);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 100 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 0);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
         }
@@ -1057,22 +921,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = (10**(18 + 6)) << 2;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 0);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 50 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 0);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 50 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
         }
@@ -1088,22 +944,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = (10**(18 + 6)) << 2;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 0);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 50 ether);
-            assert(nextLiquidity == 100 ether);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 0);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 50 ether);
+            assert(order.nextLiquidity == 100 ether);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
             assert(pb.rounds(alice, orderId) == 1);
@@ -1144,22 +992,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = (10**(18 + 6)) << 2;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 0);
-            assert(liquidity == 50 ether);
-            assert(remainingLiquidity == 50 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 0);
+            assert(order.liquidity == 50 ether);
+            assert(order.remainingLiquidity == 50 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 2);
             assert(pb.rounds(bob, orderId) == 0);
             assert(pb.rounds(alice, orderId) == 2);
@@ -1181,22 +1021,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = ((price << 1) + 1) << 1;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 1);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 100 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 1);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
         }
@@ -1211,22 +1043,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = ((price << 1) + 1) << 1;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 1);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 50 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 1);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 50 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
         }
@@ -1242,22 +1066,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = ((price << 1) + 1) << 1;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 1);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 50 ether);
-            assert(nextLiquidity == 100 ether);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 1);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 50 ether);
+            assert(order.nextLiquidity == 100 ether);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
             assert(pb.rounds(alice, orderId) == 1);
@@ -1298,22 +1114,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = ((price << 1) + 1) << 1;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 1);
-            assert(liquidity == 50 ether);
-            assert(remainingLiquidity == 50 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 1);
+            assert(order.liquidity == 50 ether);
+            assert(order.remainingLiquidity == 50 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 2);
             assert(pb.rounds(bob, orderId) == 0);
             assert(pb.rounds(alice, orderId) == 2);
@@ -1334,22 +1142,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = (10**(18 + 6)) << 2;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 0);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 100 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 0);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
         }
@@ -1404,22 +1204,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = (10**(18 + 6)) << 2;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 0);
-            assert(liquidity == 50 ether);
-            assert(remainingLiquidity == 50 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 0);
+            assert(order.liquidity == 50 ether);
+            assert(order.remainingLiquidity == 50 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 1);
             assert(pb.rounds(bob, orderId) == 1);
         }
@@ -1439,22 +1231,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = (((10**(18 + 6)) << 1) + 1) << 1;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 1);
-            assert(liquidity == 100 ether);
-            assert(remainingLiquidity == 100 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 1);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
         }
@@ -1509,22 +1293,14 @@ contract BookTest is DSTestPlus {
         }
         {
             uint256 orderId = (((10**(18 + 6)) << 1) + 1) << 1;
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(1);
-            assert(prev == 0);
-            assert(next == 0);
-            assert(_price == 10**(18 + 6));
-            assert(token == 1);
-            assert(liquidity == 50 ether);
-            assert(remainingLiquidity == 50 ether);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 10**(18 + 6));
+            assert(order.token == 1);
+            assert(order.liquidity == 50 ether);
+            assert(order.remainingLiquidity == 50 ether);
+            assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 1);
             assert(pb.rounds(bob, orderId) == 1);
         }
@@ -1538,22 +1314,14 @@ contract BookTest is DSTestPlus {
             token0.mint(address(pb), orderSize);
             pb.open(price, uint64(i), bob);
 
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(i + 1);
-            assert(prev == 0);
-            assert(next == i);
-            assert(_price == price);
-            assert(token == 0);
-            assert(liquidity == orderSize);
-            assert(remainingLiquidity == orderSize);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(uint64(i + 1));
+            assert(order.prev == 0);
+            assert(order.next == i);
+            assert(order.price == price);
+            assert(order.token == 0);
+            assert(order.liquidity == orderSize);
+            assert(order.remainingLiquidity == orderSize);
+            assert(order.nextLiquidity == 0);
 
             assert(pb.balanceOf(bob, price << 2) == orderSize);
 
@@ -1593,22 +1361,14 @@ contract BookTest is DSTestPlus {
             token1.mint(address(pb), orderSize);
             pb.open(price, uint64(i), bob);
 
-            (
-                uint64 prev,
-                uint64 next,
-                uint256 _price,
-                uint8 token,
-                uint256 liquidity,
-                uint256 remainingLiquidity,
-                uint256 nextLiquidity
-            ) = pb.orders(i + 1);
-            assert(prev == 0);
-            assert(next == i);
-            assert(_price == price);
-            assert(token == 1);
-            assert(liquidity == orderSize);
-            assert(remainingLiquidity == orderSize);
-            assert(nextLiquidity == 0);
+            IBook.Order memory order = pb.orders(uint64(i + 1));
+            assert(order.prev == 0);
+            assert(order.next == i);
+            assert(order.price == price);
+            assert(order.token == 1);
+            assert(order.liquidity == orderSize);
+            assert(order.remainingLiquidity == orderSize);
+            assert(order.nextLiquidity == 0);
 
             assert(pb.balanceOf(bob, ((price << 1) + 1) << 1) == orderSize);
 

@@ -2,6 +2,7 @@
 pragma solidity >=0.8.6;
 
 import './Book.sol';
+import './interfaces/IPrinter.sol';
 
 //  ,----,------------------------------,------.
 //  | ## |                              |    - |
@@ -12,12 +13,12 @@ import './Book.sol';
 //  |    ||___                      ___||    ##|
 //  |    ||---`--------------------'---||      |
 //  `----'|_|______________________==__|`------'
-contract Printer {
-    // handle all the logic to create and store books
-
-    mapping(address => mapping(address => address)) public pairForERC20; // ERC20 <=> ERC20 pair
-    mapping(address => mapping(uint256 => mapping(address => mapping(uint256 => address)))) public pairForERC1155; // ERC1155 <=> ERC1155 pair
-    mapping(address => mapping(uint256 => mapping(address => address))) public pairForHybrid; // ERC1155 <=> ERC20 pair
+contract Printer is IPrinter {
+    mapping(address => mapping(address => address)) public override pairForERC20; // ERC20 <=> ERC20 pair
+    mapping(address => mapping(uint256 => mapping(address => mapping(uint256 => address))))
+        public
+        override pairForERC1155; // ERC1155 <=> ERC1155 pair
+    mapping(address => mapping(uint256 => mapping(address => address))) public override pairForHybrid; // ERC1155 <=> ERC20 pair
 
     function _sortERC20Tokens(address _tokenA, address _tokenB) internal pure returns (address token0, address token1) {
         if (_tokenA > _tokenB) {
@@ -71,18 +72,7 @@ contract Printer {
         }
     }
 
-    error PairAlreadyExists();
-    error InvalidTokens();
-    event PairCreated(
-        address indexed _token0,
-        address indexed _token1,
-        uint256 _id0,
-        uint256 _id1,
-        bool _erc1155_0,
-        bool _erc1155_1
-    );
-
-    function createERC20Pair(address _tokenA, address _tokenB) external returns (address) {
+    function createERC20Pair(address _tokenA, address _tokenB) external override returns (address) {
         if (_tokenA == _tokenB) {
             revert InvalidTokens();
         }
@@ -109,7 +99,7 @@ contract Printer {
         uint256 _idA,
         address _tokenB,
         uint256 _idB
-    ) external returns (address) {
+    ) external override returns (address) {
         if (_tokenA == _tokenB && _idA == _idB) {
             revert InvalidTokens();
         }
@@ -135,7 +125,7 @@ contract Printer {
         address _tokenERC1155,
         uint256 _id,
         address _tokenERC20
-    ) external returns (address) {
+    ) external override returns (address) {
         if (_tokenERC20 == _tokenERC1155) {
             revert InvalidTokens();
         }

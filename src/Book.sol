@@ -5,6 +5,7 @@ import './ERC1155.sol';
 import './interfaces/IPairBookCaller.sol';
 import './interfaces/IERC1155.sol';
 import './interfaces/IERC20.sol';
+import './interfaces/IBook.sol';
 
 //                ,   ,
 //     ,   ,     /////|
@@ -19,53 +20,28 @@ import './interfaces/IERC20.sol';
 //  '---'     | 5 |/
 //            '---'
 //
-contract Book is ERC1155 {
-    error Locked();
-    error Forbidden();
-    error InvalidAmount();
-    error ReserveTooLow();
-    error InvalidBalances();
-    error InvalidPriceDelta();
-    error InvalidPriceOrdering();
-    error MultiTokenOrderCreation();
-    error NextOrderIndexOutOfBounds();
-    error DecimalCountTooLow(address token);
-
-    event Sync(uint112 reserve0, uint112 reserve1);
-    event OrderChanged(uint256 indexed orderId, uint256 liquidity, uint256 remainingLiquidity, uint256 nextLiquidity);
-
-    struct Order {
-        uint64 prev;
-        uint64 next;
-        uint256 price;
-        uint8 token;
-        uint256 liquidity;
-        uint256 remainingLiquidity;
-        uint256 nextLiquidity;
-    }
-
+contract Book is ERC1155, IBook {
     uint256 private unlocked = 2;
 
-    address public printer;
+    address public override printer;
+    uint256 public override id0;
+    uint256 public override id1;
+    address public override token0;
+    address public override token1;
+    bool public override erc1155_0;
+    bool public override erc1155_1;
+    uint8 public override decimals0;
+    uint8 public override decimals1;
+    uint112 public override reserve0;
+    uint112 public override reserve1;
 
-    uint256 public id0;
-    uint256 public id1;
-    address public token0;
-    address public token1;
-    bool public erc1155_0;
-    bool public erc1155_1;
-    uint8 public decimals0;
-    uint8 public decimals1;
-    uint112 public reserve0;
-    uint112 public reserve1;
+    IBook.Order[] internal _orders;
+    uint64[4] public override keyOrderIndexes;
 
-    Order[] public orders;
-    uint64[4] public keyOrderIndexes;
-
-    mapping(uint256 => uint256) public totalSupply;
-    mapping(uint256 => uint64) public orderIndexes;
-    mapping(uint256 => uint64) public orderRounds;
-    mapping(address => mapping(uint256 => uint64)) public rounds;
+    mapping(uint256 => uint256) public override totalSupply;
+    mapping(uint256 => uint64) public override orderIndexes;
+    mapping(uint256 => uint64) public override orderRounds;
+    mapping(address => mapping(uint256 => uint64)) public override rounds;
 
     uint256 internal constant BASE = 100000;
     uint256 internal constant MIN_PRICE_DELTA = 300;
@@ -106,7 +82,7 @@ contract Book is ERC1155 {
             decimals1 = IERC20(token1).decimals();
         }
 
-        orders.push(
+        _orders.push(
             Order({prev: 0, next: 0, liquidity: 0, nextLiquidity: 0, remainingLiquidity: 0, price: 0, token: 0})
         );
 
@@ -125,12 +101,16 @@ contract Book is ERC1155 {
         unlocked = 2;
     }
 
-    function head0() external view returns (Order memory) {
-        return orders[keyOrderIndexes[HEAD0]];
+    function orders(uint64 _index) external view override returns (IBook.Order memory) {
+        return _orders[_index];
     }
 
-    function head1() external view returns (Order memory) {
-        return orders[keyOrderIndexes[HEAD1]];
+    function head0() external view override returns (Order memory) {
+        return _orders[keyOrderIndexes[HEAD0]];
+    }
+
+    function head1() external view override returns (Order memory) {
+        return _orders[keyOrderIndexes[HEAD1]];
     }
 
     function balanceOf(address _owner, uint256 _id) external view override returns (uint256) {
@@ -166,18 +146,18 @@ contract Book is ERC1155 {
         uint256 _price,
         uint64 _nextOrderIndex,
         address _to
-    ) external lock {
-        if (_nextOrderIndex >= orders.length) {
+    ) external override lock {
+        if (_nextOrderIndex >= _orders.length) {
             revert NextOrderIndexOutOfBounds();
         }
         _openOrder(_price, _nextOrderIndex, _to);
     }
 
-    function close(uint256 _orderId, address _to) external lock {
+    function close(uint256 _orderId, address _to) external override lock {
         _closeOrder(_orderId, _to);
     }
 
-    function settle(address _who, uint256[] calldata _orderIds) external lock {
+    function settle(address _who, uint256[] calldata _orderIds) external override lock {
         for (uint256 i; i < _orderIds.length; ) {
             _clean(_orderIds[i], _who, _who, 0);
             unchecked {
@@ -191,7 +171,7 @@ contract Book is ERC1155 {
         uint256 amount1Out,
         address to,
         bytes memory data
-    ) external lock {
+    ) external override lock {
         uint256 debt0;
         uint256 debt1;
 
@@ -380,7 +360,7 @@ contract Book is ERC1155 {
             uint256 orderIndex = orderIndexes[realId];
 
             if (orderIndex > 0) {
-                Order memory order = orders[orderIndex];
+                Order memory order = _orders[orderIndex];
                 if (rounds[_owner][realId] > orderRounds[realId]) {
                     // 0% filled
                     return 0;
@@ -413,7 +393,7 @@ contract Book is ERC1155 {
                 return balance;
             } else if (rounds[_owner][_id] == orderRounds[_id]) {
                 // partial fill
-                Order memory order = orders[orderIndex];
+                Order memory order = _orders[orderIndex];
                 return (balance * order.remainingLiquidity) / order.liquidity;
             } else {
                 // 100% filled
@@ -455,7 +435,7 @@ contract Book is ERC1155 {
     }
 
     function _getAmountIn(uint256 amountOut, uint256 price) internal view returns (uint256) {
-        return ((amountOut * price) / (10**(decimals0 + decimals1)));
+        return ((amountOut * (10**(decimals0 + decimals1))) / price);
     }
 
     function _getAmountOut(uint256 amountIn, uint256 price) internal view returns (uint256) {
@@ -507,7 +487,7 @@ contract Book is ERC1155 {
         uint64 headIndex = _getHeadIndex(_token);
         uint64 tailIndex = _getTailIndex(_token);
         if (headIndex == 0) {
-            orders.push(
+            _orders.push(
                 Order({
                     prev: 0,
                     next: 0,
@@ -518,16 +498,16 @@ contract Book is ERC1155 {
                     token: _token
                 })
             );
-            uint64 newOrderIndex = uint64(orders.length) - 1;
+            uint64 newOrderIndex = uint64(_orders.length) - 1;
             orderIndexes[orderId] = newOrderIndex;
             _setHeadIndex(_token, newOrderIndex);
             _setTailIndex(_token, newOrderIndex);
 
             return (orderId, newOrderIndex);
         } else if (_nextOrderIndex == 0) {
-            Order memory tailOrder = orders[tailIndex];
+            Order memory tailOrder = _orders[tailIndex];
             _checkAfterOrder(tailOrder, _price);
-            orders.push(
+            _orders.push(
                 Order({
                     prev: tailIndex,
                     next: 0,
@@ -538,18 +518,18 @@ contract Book is ERC1155 {
                     token: _token
                 })
             );
-            uint64 newOrderIndex = uint64(orders.length) - 1;
+            uint64 newOrderIndex = uint64(_orders.length) - 1;
             orderIndexes[orderId] = newOrderIndex;
-            orders[tailIndex].next = newOrderIndex;
+            _orders[tailIndex].next = newOrderIndex;
             _setTailIndex(_token, newOrderIndex);
             return (orderId, newOrderIndex);
         } else {
-            Order memory nextOrder = orders[_nextOrderIndex];
+            Order memory nextOrder = _orders[_nextOrderIndex];
             if (nextOrder.price == _price) {
                 return (orderId, _nextOrderIndex);
             } else if (nextOrder.prev == 0) {
                 _checkBeforeOrder(nextOrder, _price);
-                orders.push(
+                _orders.push(
                     Order({
                         prev: 0,
                         next: _nextOrderIndex,
@@ -560,16 +540,16 @@ contract Book is ERC1155 {
                         token: _token
                     })
                 );
-                uint64 newOrderIndex = uint64(orders.length) - 1;
+                uint64 newOrderIndex = uint64(_orders.length) - 1;
                 orderIndexes[orderId] = newOrderIndex;
-                orders[_nextOrderIndex].prev = newOrderIndex;
+                _orders[_nextOrderIndex].prev = newOrderIndex;
                 _setHeadIndex(_token, newOrderIndex);
                 return (orderId, newOrderIndex);
             } else {
-                Order memory prevOrder = orders[nextOrder.prev];
+                Order memory prevOrder = _orders[nextOrder.prev];
                 _checkBeforeOrder(nextOrder, _price);
                 _checkAfterOrder(prevOrder, _price);
-                orders.push(
+                _orders.push(
                     Order({
                         prev: nextOrder.prev,
                         next: _nextOrderIndex,
@@ -580,35 +560,35 @@ contract Book is ERC1155 {
                         token: _token
                     })
                 );
-                uint64 newOrderIndex = uint64(orders.length) - 1;
+                uint64 newOrderIndex = uint64(_orders.length) - 1;
                 orderIndexes[orderId] = newOrderIndex;
-                orders[nextOrder.prev].next = newOrderIndex;
-                orders[_nextOrderIndex].prev = newOrderIndex;
+                _orders[nextOrder.prev].next = newOrderIndex;
+                _orders[_nextOrderIndex].prev = newOrderIndex;
 
                 return (orderId, newOrderIndex);
             }
         }
     }
 
-    function _mintOrdersToken(
+    function _mint_ordersToken(
         uint256 _orderId,
         uint256 _orderIndex,
         uint256 _amount,
         address _to
     ) internal {
         _mintTokens(_to, _orderId, _amount);
-        if (orders[_orderIndex].remainingLiquidity == orders[_orderIndex].liquidity) {
-            orders[_orderIndex].liquidity += _amount;
-            orders[_orderIndex].remainingLiquidity += _amount;
+        if (_orders[_orderIndex].remainingLiquidity == _orders[_orderIndex].liquidity) {
+            _orders[_orderIndex].liquidity += _amount;
+            _orders[_orderIndex].remainingLiquidity += _amount;
         } else {
-            orders[_orderIndex].nextLiquidity += _amount;
+            _orders[_orderIndex].nextLiquidity += _amount;
         }
 
         emit OrderChanged(
             _orderId,
-            orders[_orderIndex].liquidity,
-            orders[_orderIndex].remainingLiquidity,
-            orders[_orderIndex].nextLiquidity
+            _orders[_orderIndex].liquidity,
+            _orders[_orderIndex].remainingLiquidity,
+            _orders[_orderIndex].nextLiquidity
         );
     }
 
@@ -647,8 +627,8 @@ contract Book is ERC1155 {
         uint8 token = amount0In > amount1In ? 0 : 1;
         uint256 amountIn = amount0In > amount1In ? amount0In : amount1In;
         (uint256 orderId, uint256 orderIndex) = _insertOrder(token, _price, _nextOrderIndex);
-        _mintOrdersToken(orderId, orderIndex, amountIn, _to);
-        Order memory order = orders[orderIndex];
+        _mint_ordersToken(orderId, orderIndex, amountIn, _to);
+        Order memory order = _orders[orderIndex];
 
         if (order.liquidity != order.remainingLiquidity) {
             rounds[_to][orderId] = orderRounds[orderId] + 1;
@@ -666,7 +646,7 @@ contract Book is ERC1155 {
         uint256 _amount
     ) internal {
         uint64 index = orderIndexes[_orderId];
-        Order memory order = orders[index];
+        Order memory order = _orders[index];
         _bringToUntouchedRound(_orderId, index, order, _owner, _to, _amount);
     }
 
@@ -756,18 +736,18 @@ contract Book is ERC1155 {
 
                     rounds[_owner][_orderId] = untouchedRound; // user is brought to untouchedRound
 
-                    if (orders[_orderIndex].liquidity == rawBalance) {
+                    if (_orders[_orderIndex].liquidity == rawBalance) {
                         // if all liquidity is moving to untouched, bring order to next round
-                        uint256 newLiq = rawBalance - balance + orders[_orderIndex].nextLiquidity;
-                        orders[_orderIndex].liquidity = newLiq;
-                        orders[_orderIndex].remainingLiquidity = newLiq;
-                        orders[_orderIndex].nextLiquidity = 0;
+                        uint256 newLiq = rawBalance - balance + _orders[_orderIndex].nextLiquidity;
+                        _orders[_orderIndex].liquidity = newLiq;
+                        _orders[_orderIndex].remainingLiquidity = newLiq;
+                        _orders[_orderIndex].nextLiquidity = 0;
                         orderRounds[_orderId] += 1;
                     } else {
                         // otherwise, compute unfilled amount and add it to nextLiquidity
-                        orders[_orderIndex].nextLiquidity += rawBalance - balance;
-                        orders[_orderIndex].liquidity -= rawBalance;
-                        orders[_orderIndex].remainingLiquidity -= rawBalance - balance;
+                        _orders[_orderIndex].nextLiquidity += rawBalance - balance;
+                        _orders[_orderIndex].liquidity -= rawBalance;
+                        _orders[_orderIndex].remainingLiquidity -= rawBalance - balance;
                     }
                 } else {
                     // total fill
@@ -797,40 +777,40 @@ contract Book is ERC1155 {
     }
 
     function _removeOrder(uint256 _orderId, uint64 _orderIndex) internal {
-        Order memory order = orders[_orderIndex];
+        Order memory order = _orders[_orderIndex];
 
         if (order.next != 0) {
-            orders[order.next].prev = order.prev;
+            _orders[order.next].prev = order.prev;
         } else {
             _setTailIndex(order.token, order.prev);
         }
         if (order.prev != 0) {
-            orders[order.prev].next = order.next;
+            _orders[order.prev].next = order.next;
         } else {
             _setHeadIndex(order.token, order.next);
         }
 
-        if (_orderIndex != orders.length - 1) {
-            Order memory lastOrder = orders[orders.length - 1];
+        if (_orderIndex != _orders.length - 1) {
+            Order memory lastOrder = _orders[_orders.length - 1];
 
             if (lastOrder.next != 0) {
-                orders[lastOrder.next].prev = _orderIndex;
+                _orders[lastOrder.next].prev = _orderIndex;
             } else {
                 _setTailIndex(lastOrder.token, _orderIndex);
             }
             if (lastOrder.prev != 0) {
-                orders[lastOrder.prev].next = _orderIndex;
+                _orders[lastOrder.prev].next = _orderIndex;
             } else {
                 _setHeadIndex(lastOrder.token, _orderIndex);
             }
             uint256 lastOrderId = _getOrderId(lastOrder.token, lastOrder.price);
             orderIndexes[lastOrderId] = _orderIndex;
-            orders[_orderIndex] = lastOrder;
+            _orders[_orderIndex] = lastOrder;
             orderIndexes[_orderId] = 0;
-            orders.pop();
+            _orders.pop();
         } else {
             orderIndexes[_orderId] = 0;
-            orders.pop();
+            _orders.pop();
         }
 
         emit OrderChanged(_orderId, 0, 0, 0);
@@ -838,7 +818,7 @@ contract Book is ERC1155 {
 
     function _closeOrder(uint256 _orderId, address _to) internal {
         uint64 orderIndex = orderIndexes[_orderId];
-        Order memory order = orders[orderIndex];
+        Order memory order = _orders[orderIndex];
         _bringToUntouchedRound(_orderId, orderIndex, order, address(this), _to, 0);
         uint256 orderAmountIn = _balanceOf[address(this)][_orderId];
         if (orderAmountIn == 0) {
@@ -861,16 +841,16 @@ contract Book is ERC1155 {
         uint256 amountOut
     ) internal returns (uint256 amountOutLeft, uint256 debt) {
         uint256 orderId = _getOrderId(order.token, order.price);
-        orders[orderIndex].remainingLiquidity -= amountOut;
+        _orders[orderIndex].remainingLiquidity -= amountOut;
 
         amountOutLeft = 0;
         debt = _getAmountIn(amountOut, order.price);
 
         emit OrderChanged(
             orderId,
-            orders[orderIndex].liquidity,
-            orders[orderIndex].remainingLiquidity,
-            orders[orderIndex].nextLiquidity
+            _orders[orderIndex].liquidity,
+            _orders[orderIndex].remainingLiquidity,
+            _orders[orderIndex].nextLiquidity
         );
     }
 
@@ -882,19 +862,19 @@ contract Book is ERC1155 {
         uint256 orderId = _getOrderId(order.token, order.price);
         if (amountOut >= order.nextLiquidity) {
             amountOutLeft = amountOut - order.nextLiquidity;
-            debt = _getAmountIn(order.nextLiquidity + orders[orderIndex].remainingLiquidity, order.price);
+            debt = _getAmountIn(order.nextLiquidity + _orders[orderIndex].remainingLiquidity, order.price);
 
             _removeOrder(_getOrderId(order.token, order.price), orderIndex);
         } else {
-            debt = _getAmountIn(amountOut + orders[orderIndex].remainingLiquidity, order.price);
-            orders[orderIndex].remainingLiquidity = orders[orderIndex].nextLiquidity - amountOut;
-            orders[orderIndex].liquidity = orders[orderIndex].nextLiquidity;
+            debt = _getAmountIn(amountOut + _orders[orderIndex].remainingLiquidity, order.price);
+            _orders[orderIndex].remainingLiquidity = _orders[orderIndex].nextLiquidity - amountOut;
+            _orders[orderIndex].liquidity = _orders[orderIndex].nextLiquidity;
             orderRounds[orderId] += 1;
-            orders[orderIndex].nextLiquidity = 0;
+            _orders[orderIndex].nextLiquidity = 0;
 
             amountOutLeft = 0;
 
-            emit OrderChanged(orderId, orders[orderIndex].liquidity, orders[orderIndex].remainingLiquidity, 0);
+            emit OrderChanged(orderId, _orders[orderIndex].liquidity, _orders[orderIndex].remainingLiquidity, 0);
         }
     }
 
@@ -905,7 +885,7 @@ contract Book is ERC1155 {
             uint256 /* debt */
         )
     {
-        Order memory order = orders[firstOrderIndex];
+        Order memory order = _orders[firstOrderIndex];
         uint256 availableLiquidity = order.remainingLiquidity;
         if (amountOut >= availableLiquidity) {
             return _consumeFromOrderNextLiq(order, firstOrderIndex, amountOut - availableLiquidity);
