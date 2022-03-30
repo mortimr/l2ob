@@ -122,13 +122,15 @@ contract Book is Token, IBook {
     }
 
     /// @notice Retrieve best order to buy token0 / sell token1
-    function head0() external view override returns (Order memory) {
-        return _orders[keyOrderIndexes[HEAD0]];
+    function head0() external view override returns (uint64, Order memory) {
+        uint64 headIndex = keyOrderIndexes[HEAD0];
+        return (headIndex, _orders[headIndex]);
     }
 
     /// @notice Retrieve best order to buy token1 / sell token0
-    function head1() external view override returns (Order memory) {
-        return _orders[keyOrderIndexes[HEAD1]];
+    function head1() external view override returns (uint64, Order memory) {
+        uint64 headIndex = keyOrderIndexes[HEAD1];
+        return (headIndex, _orders[headIndex]);
     }
 
     /// @notice Retrieve the order balance of a user
@@ -731,12 +733,12 @@ contract Book is Token, IBook {
             uint8 orderOutputToken = (uint8((_orderId >> 1) & 1)) ^ 1;
             uint256 orderAmountOut;
             if (_amount == 0 || _amount == balance) {
-                orderAmountOut = _getAmountOut(balance, price);
+                orderAmountOut = _getAmountIn(balance, price);
                 _transferOut(orderOutputToken, _to, orderAmountOut);
             } else {
-                uint256 orderToAmountOut = _getAmountOut(_amount, price);
+                uint256 orderToAmountOut = _getAmountIn(_amount, price);
                 _transferOut(orderOutputToken, _to, orderToAmountOut);
-                uint256 orderOwnerAmountOut = _getAmountOut(balance - _amount, price);
+                uint256 orderOwnerAmountOut = _getAmountIn(balance - _amount, price);
                 _transferOut(orderOutputToken, _to, orderOwnerAmountOut);
                 orderAmountOut = orderToAmountOut + orderOwnerAmountOut;
             }
@@ -772,14 +774,14 @@ contract Book is Token, IBook {
                 return;
             }
 
-            uint256 orderAmountOut = _getAmountOut(balance, _order.price);
+            uint256 orderAmountOut = _getAmountIn(balance, _order.price);
             if (_amount == 0 || _amount == balance) {
-                orderAmountOut = _getAmountOut(balance, _order.price);
+                orderAmountOut = _getAmountIn(balance, _order.price);
                 _transferOut(_order.token ^ 1, _to, orderAmountOut);
             } else {
-                uint256 orderToAmountOut = _getAmountOut(_amount, _order.price);
+                uint256 orderToAmountOut = _getAmountIn(_amount, _order.price);
                 _transferOut(_order.token ^ 1, _to, orderToAmountOut);
-                uint256 orderOwnerAmountOut = _getAmountOut(balance - _amount, _order.price);
+                uint256 orderOwnerAmountOut = _getAmountIn(balance - _amount, _order.price);
                 _transferOut(_order.token ^ 1, _to, orderOwnerAmountOut);
                 orderAmountOut = orderToAmountOut + orderOwnerAmountOut;
             }

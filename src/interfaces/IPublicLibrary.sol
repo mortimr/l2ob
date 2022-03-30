@@ -2,7 +2,7 @@
 pragma solidity >=0.8.6;
 
 interface IPublicLibrary {
-    error InsufficientLiquidity(address book, uint8 token, uint256 maxAvailableOut);
+    error InsufficientLiquidity(address book, uint8 token, uint256 missingAmount);
     error DeadlineCrossed();
     error InvalidArrayLength();
     error AmountInTooHigh(uint256 amountIn);
@@ -226,7 +226,8 @@ interface IPublicLibrary {
 
     function settle(
         address[] calldata _books,
-        uint256[][] calldata _orderIds,
+        uint256[] calldata _orderCounts,
+        uint256[] calldata _orderIds,
         address _owner
     ) external;
 }

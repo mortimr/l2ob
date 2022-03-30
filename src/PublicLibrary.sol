@@ -7,6 +7,8 @@ import './interfaces/IBook.sol';
 import './interfaces/IPrinter.sol';
 import './interfaces/IPublicLibrary.sol';
 
+import './test/console.sol';
+
 //        .--.                   .---.
 //    .---|__|           .-.     |~~~|
 // .--|===|--|_          |_|     |erc|--.
@@ -79,10 +81,10 @@ contract PublicLibrary is IPublicLibrary {
             book = IPrinter(printer).createERC20Book(_tokenIn, _tokenOut);
         }
 
-        IERC20(_tokenIn).transferFrom(msg.sender, address(book), _amount);
+        IERC20(_tokenOut).transferFrom(msg.sender, address(book), _amount);
         IBook(book).open(_price, _nextOrderIndex, msg.sender);
 
-        orderId = _getOrderId(IBook(book).token0() == _tokenIn ? 0 : 1, _price);
+        orderId = _getOrderId(IBook(book).token0() == _tokenIn ? 1 : 0, _price);
     }
 
     function swapExactERC20forERC20(
@@ -538,16 +540,27 @@ contract PublicLibrary is IPublicLibrary {
 
     function settle(
         address[] calldata _books,
-        uint256[][] calldata _orderIds,
+        uint256[] calldata _orderCounts,
+        uint256[] calldata _orderIds,
         address _owner
     ) external override {
-        if (_books.length != _orderIds.length || _books.length == 0) {
+        if (_books.length != _orderCounts.length || _books.length == 0) {
             revert InvalidArrayLength();
         }
 
+        uint256 idIndex = 0;
+
         for (uint256 i; i < _books.length; ) {
-            IBook(_books[i]).settle(_owner, _orderIds[i]);
+            uint256[] memory ids = new uint256[](_orderCounts[i]);
+            for (uint256 y; y < _orderCounts[i]; ) {
+                ids[y] = _orderIds[idIndex + y];
+                unchecked {
+                    ++y;
+                }
+            }
+            IBook(_books[i]).settle(_owner, ids);
             unchecked {
+                idIndex += _orderCounts[i];
                 ++i;
             }
         }
@@ -591,18 +604,21 @@ contract PublicLibrary is IPublicLibrary {
         uint256 _amountIn,
         uint8 _tokenOut
     ) internal view returns (uint256 amountOut) {
-        IBook.Order memory order = _tokenOut == 0 ? _book.head0() : _book.head1();
+        (uint64 headIndex, IBook.Order memory order) = _tokenOut == 0 ? _book.head0() : _book.head1();
+        if (headIndex == 0) {
+            revert InsufficientLiquidity(address(_book), _tokenOut, _amountIn);
+        }
         uint8 decimalSum = _book.decimals0() + _book.decimals1();
         while (_amountIn > 0) {
             uint256 minAmountIn = _getAmountIn(order.remainingLiquidity + order.nextLiquidity, order.price, decimalSum);
-            if (minAmountIn > _amountIn) {
-                _amountIn = 0;
+            if (minAmountIn >= _amountIn) {
                 amountOut += _getAmountOut(_amountIn, order.price, decimalSum);
+                _amountIn = 0;
             } else {
-                _amountIn -= minAmountIn;
                 amountOut += _getAmountOut(minAmountIn, order.price, decimalSum);
+                _amountIn -= minAmountIn;
                 if (order.next == 0) {
-                    revert InsufficientLiquidity(address(_book), _tokenOut, amountOut);
+                    revert InsufficientLiquidity(address(_book), _tokenOut, _amountIn);
                 }
                 order = _book.orders(order.next);
             }
@@ -614,20 +630,19 @@ contract PublicLibrary is IPublicLibrary {
         uint256 _amountOut,
         uint8 _tokenOut
     ) internal view returns (uint256 amountIn) {
-        IBook.Order memory order = _tokenOut == 0 ? _book.head0() : _book.head1();
+        (uint64 headIndex, IBook.Order memory order) = _tokenOut == 0 ? _book.head0() : _book.head1();
+        if (headIndex == 0) {
+            revert InsufficientLiquidity(address(_book), _tokenOut, _amountOut);
+        }
         uint8 decimalSum = _book.decimals0() + _book.decimals1();
         while (_amountOut > 0) {
-            uint256 maxAmountOut = _getAmountOut(
-                order.remainingLiquidity + order.nextLiquidity,
-                order.price,
-                decimalSum
-            );
-            if (maxAmountOut > _amountOut) {
-                _amountOut = 0;
+            uint256 maxAmountOut = order.remainingLiquidity + order.nextLiquidity;
+            if (maxAmountOut >= _amountOut) {
                 amountIn += _getAmountIn(_amountOut, order.price, decimalSum);
+                _amountOut = 0;
             } else {
+                amountIn += _getAmountIn(order.remainingLiquidity + order.nextLiquidity, order.price, decimalSum);
                 _amountOut -= maxAmountOut;
-                amountIn += _getAmountIn(maxAmountOut, order.price, decimalSum);
                 if (order.next == 0) {
                     revert InsufficientLiquidity(address(_book), _tokenOut, _amountOut);
                 }
@@ -797,26 +812,20 @@ contract PublicLibrary is IPublicLibrary {
         count = 0;
 
         for (uint256 i; i < _path.length; ) {
-            if (_path[i] & 1 == 1) {
-                // erc1155
-
-                if (i + 1 == _path.length) {
-                    revert InvalidPathArgument();
-                }
-
+            if (_path[i] == 0) {
                 tokenDetails[count] = TokenDetails({
-                    tokenAddress: _uintToAddress(_path[i] >> 1),
-                    id: _path[i + 1],
-                    isERC1155: true
-                });
-
-                ++i;
-            } else {
-                tokenDetails[count] = TokenDetails({
-                    tokenAddress: _uintToAddress(_path[i] >> 1),
+                    tokenAddress: _uintToAddress(_path[i + 1]),
                     id: 0,
                     isERC1155: false
                 });
+                ++i;
+            } else {
+                tokenDetails[count] = TokenDetails({
+                    tokenAddress: _uintToAddress(_path[i + 1]),
+                    id: _path[i + 2],
+                    isERC1155: true
+                });
+                i += 2;
             }
 
             ++count;

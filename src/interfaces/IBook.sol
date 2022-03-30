@@ -53,9 +53,9 @@ interface IBook {
 
     function token1() external view returns (address);
 
-    function head0() external view returns (Order memory);
+    function head0() external view returns (uint64, Order memory);
 
-    function head1() external view returns (Order memory);
+    function head1() external view returns (uint64, Order memory);
 
     function erc1155_0() external view returns (bool);
 
