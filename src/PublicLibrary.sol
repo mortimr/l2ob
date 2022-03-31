@@ -7,8 +7,6 @@ import './interfaces/IBook.sol';
 import './interfaces/IPrinter.sol';
 import './interfaces/IPublicLibrary.sol';
 
-import './test/console.sol';
-
 //        .--.                   .---.
 //    .---|__|           .-.     |~~~|
 // .--|===|--|_          |_|     |erc|--.
@@ -735,11 +733,11 @@ contract PublicLibrary is IPublicLibrary {
     {
         amounts = new uint256[](_path.length);
 
-        for (uint256 i = _path.length - 1; i > 1; ) {
+        for (uint256 i = _path.length - 1; i >= 1; ) {
             amounts[i] = _amountOut;
             if (_path[i].isERC1155 == false && _path[i - 1].isERC1155 == false) {
                 _amountOut = _getMinAmountIn(
-                    IBook(IPrinter(printer).bookForERC20(_path[i].tokenAddress, _path[i + 1].tokenAddress)),
+                    IBook(IPrinter(printer).bookForERC20(_path[i].tokenAddress, _path[i - 1].tokenAddress)),
                     _amountOut,
                     _isERC20Token0(_path[i].tokenAddress, _path[i - 1].tokenAddress) == true ? 0 : 1
                 );
@@ -781,7 +779,7 @@ contract PublicLibrary is IPublicLibrary {
                 );
             }
             unchecked {
-                ++i;
+                --i;
             }
         }
 
@@ -797,9 +795,11 @@ contract PublicLibrary is IPublicLibrary {
     function _pathToTokenDetails(uint256[] calldata _path) internal pure returns (TokenDetails[] memory tokenDetails) {
         uint256 count;
         for (uint256 i; i < _path.length; ) {
-            if (_path[i] & 1 == 1) {
+            if (_path[i] == 0) {
                 // erc1155
                 ++i;
+            } else {
+                i += 1;
             }
 
             ++count;
