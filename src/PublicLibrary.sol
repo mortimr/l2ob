@@ -18,15 +18,21 @@ import './interfaces/IPublicLibrary.sol';
 // |  |===|--|   \.'\|===|~|--|%%|~~~|--|
 // ^--^---'--^    `-'`---^-^--^--^---'--'
 //
+/// @notice PublicLibrary acts as a router between all deployed Books
+/// @author Iulian Rotaru
 contract PublicLibrary is IPublicLibrary {
+    /// @notice Internal decoded swap path element
     struct TokenDetails {
         address tokenAddress;
         uint256 id;
         bool isERC1155;
     }
 
+    /// @notice Global Printer of all Books
     address public override printer;
 
+    /// @notice The only external dependency is the Printer address
+    /// @param _printer Address of the Printer
     constructor(address _printer) {
         printer = _printer;
     }
@@ -40,6 +46,10 @@ contract PublicLibrary is IPublicLibrary {
     // ╚══════╝╚═╝  ╚═╝ ╚═════╝╚══════╝ ╚═════╝        ╚═╝    ╚═════╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝╚══════╝ ╚═════╝
     //
 
+    /// @notice Get amount of input token to provide for a target output amount between two ERC20 tokens
+    /// @param _tokenIn Address of input token
+    /// @param _tokenOut Address of output token
+    /// @param _amountOut Target amount out
     function getERC20ToERC20AmountIn(
         address _tokenIn,
         address _tokenOut,
@@ -53,6 +63,10 @@ contract PublicLibrary is IPublicLibrary {
             );
     }
 
+    /// @notice Get amount of output token to provide for a target input amount between two ERC20 tokens
+    /// @param _tokenIn Address of input token
+    /// @param _tokenOut Address of output token
+    /// @param _amountIn Target amount in
     function getERC20ToERC20AmountOut(
         address _tokenIn,
         address _tokenOut,
@@ -66,6 +80,12 @@ contract PublicLibrary is IPublicLibrary {
             );
     }
 
+    /// @notice Open order on _tokenOut of _amount tokens at price _price
+    /// @param _tokenIn Address of input token
+    /// @param _tokenOut Address of output token
+    /// @param _price Order price, interpreted as amount of _tokenOut to receive per _tokenIn
+    /// @param _amount Order size
+    /// @param _nextOrderIndex Index of the next order in the target Book
     function openERC20ToERC20Order(
         address _tokenIn,
         address _tokenOut,
@@ -85,6 +105,13 @@ contract PublicLibrary is IPublicLibrary {
         orderId = _getOrderId(IBook(book).token0() == _tokenIn ? 1 : 0, _price);
     }
 
+    /// @notice Swap exact input token amount of output token
+    /// @param _amountIn Exact input amount
+    /// @param _amountOutMin Minimal accepted output amount
+    /// @param _tokenIn Address of input token
+    /// @param _tokenOut Address of output token
+    /// @param _to Swap output recipient
+    /// @param _deadline Timestamp after which swap is invalid
     function swapExactERC20forERC20(
         uint256 _amountIn,
         uint256 _amountOutMin,
@@ -109,6 +136,13 @@ contract PublicLibrary is IPublicLibrary {
         book.swap(tokenOutIsToken0 ? amountOut : 0, tokenOutIsToken0 ? 0 : amountOut, _to, '');
     }
 
+    /// @notice Swap input token for exact output token
+    /// @param _amountOut Exact output amount
+    /// @param _amountInMax Maximal accepted input amount
+    /// @param _tokenIn Address of input token
+    /// @param _tokenOut Address of output token
+    /// @param _to Swap output recipient
+    /// @param _deadline Timestamp after which swap is invalid
     function swapERC20forExactERC20(
         uint256 _amountOut,
         uint256 _amountInMax,
@@ -142,6 +176,11 @@ contract PublicLibrary is IPublicLibrary {
     // ╚══════╝╚═╝  ╚═╝ ╚═════╝╚══════╝ ╚═════╝        ╚═╝    ╚═════╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝ ╚═╝╚══════╝╚══════╝
     //
 
+    /// @notice Get amount of input token to provide for a target output amount for ERC20 to ERC1155 trade
+    /// @param _tokenIn Address of input token
+    /// @param _tokenOut Address of output token
+    /// @param _idOut ERC1155 output token id
+    /// @param _amountOut Target amount out
     function getERC20ToERC1155AmountIn(
         address _tokenIn,
         address _tokenOut,
@@ -151,6 +190,11 @@ contract PublicLibrary is IPublicLibrary {
         return _getMinAmountIn(IBook(IPrinter(printer).bookForHybrid(_tokenOut, _idOut, _tokenIn)), _amountOut, 0);
     }
 
+    /// @notice Get amount of output token to provide for a target input amount for ERC20 to ERC1155 trade
+    /// @param _tokenIn Address of input token
+    /// @param _tokenOut Address of output token
+    /// @param _idOut ERC1155 output token id
+    /// @param _amountIn Target amount in
     function getERC20ToERC1155AmountOut(
         address _tokenIn,
         address _tokenOut,
@@ -160,6 +204,13 @@ contract PublicLibrary is IPublicLibrary {
         return _getMaxAmountOut(IBook(IPrinter(printer).bookForHybrid(_tokenOut, _idOut, _tokenIn)), _amountIn, 0);
     }
 
+    /// @notice Open order on _tokenOut+_idOut of _amount tokens at price _price
+    /// @param _tokenIn Address of input token
+    /// @param _tokenOut Address of output token
+    /// @param _idOut ERC1155 output token id
+    /// @param _price Order price, interpreted as amount of _tokenOut to receive per _tokenIn
+    /// @param _amount Order size
+    /// @param _nextOrderIndex Index of the next order in the target Book
     function openERC20ToERC1155Order(
         address _tokenIn,
         address _tokenOut,
@@ -180,6 +231,14 @@ contract PublicLibrary is IPublicLibrary {
         orderId = _getOrderId(1, _price);
     }
 
+    /// @notice Swap exact input token amount of output token
+    /// @param _amountIn Exact input amount
+    /// @param _amountOutMin Minimal accepted output amount
+    /// @param _tokenIn Address of input token
+    /// @param _tokenOut Address of output token
+    /// @param _idOut ERC1155 output token id
+    /// @param _to Swap output recipient
+    /// @param _deadline Timestamp after which swap is invalid
     function swapExactERC20forERC1155(
         uint256 _amountIn,
         uint256 _amountOutMin,
@@ -204,6 +263,14 @@ contract PublicLibrary is IPublicLibrary {
         book.swap(amountOut, 0, _to, '');
     }
 
+    /// @notice Swap input token for exact output token
+    /// @param _amountOut Exact output amount
+    /// @param _amountInMax Maximal accepted input amount
+    /// @param _tokenIn Address of input token
+    /// @param _tokenOut Address of output token
+    /// @param _idOut ERC1155 output token id
+    /// @param _to Swap output recipient
+    /// @param _deadline Timestamp after which swap is invalid
     function swapERC20forExactERC1155(
         uint256 _amountOut,
         uint256 _amountInMax,
@@ -237,6 +304,11 @@ contract PublicLibrary is IPublicLibrary {
     // ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝ ╚═╝╚══════╝╚══════╝       ╚═╝    ╚═════╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝╚══════╝ ╚═════╝
     //
 
+    /// @notice Get amount of input token to provide for a target output amount for ERC1155 to ERC20 trade
+    /// @param _tokenIn Address of input token
+    /// @param _idIn ERC1155 input token id
+    /// @param _tokenOut Address of output token
+    /// @param _amountOut Target amount out
     function getERC155ToERC20AmountIn(
         address _tokenIn,
         uint256 _idIn,
@@ -246,6 +318,11 @@ contract PublicLibrary is IPublicLibrary {
         return _getMinAmountIn(IBook(IPrinter(printer).bookForHybrid(_tokenIn, _idIn, _tokenOut)), _amountOut, 1);
     }
 
+    /// @notice Get amount of output token to provide for a target input amount for ERC1155 to ERC20 trade
+    /// @param _tokenIn Address of input token
+    /// @param _idIn ERC1155 input token id
+    /// @param _tokenOut Address of output token
+    /// @param _amountIn Target amount in
     function getERC155ToERC20AmountOut(
         address _tokenIn,
         uint256 _idIn,
@@ -255,6 +332,13 @@ contract PublicLibrary is IPublicLibrary {
         return _getMaxAmountOut(IBook(IPrinter(printer).bookForHybrid(_tokenIn, _idIn, _tokenOut)), _amountIn, 1);
     }
 
+    /// @notice Open order on _tokenOut+_idOut of _amount tokens at price _price
+    /// @param _tokenIn Address of input token
+    /// @param _idIn ERC1155 input token id
+    /// @param _tokenOut Address of output token
+    /// @param _price Order price, interpreted as amount of _tokenOut to receive per _tokenIn
+    /// @param _amount Order size
+    /// @param _nextOrderIndex Index of the next order in the target Book
     function openERC1155ToERC20Order(
         address _tokenIn,
         uint256 _idIn,
@@ -275,6 +359,14 @@ contract PublicLibrary is IPublicLibrary {
         orderId = _getOrderId(0, _price);
     }
 
+    /// @notice Swap exact input token amount of output token
+    /// @param _amountIn Exact input amount
+    /// @param _amountOutMin Minimal accepted output amount
+    /// @param _tokenIn Address of input token
+    /// @param _idIn ERC1155 input token id
+    /// @param _tokenOut Address of output token
+    /// @param _to Swap output recipient
+    /// @param _deadline Timestamp after which swap is invalid
     function swapExactERC1155forERC20(
         uint256 _amountIn,
         uint256 _amountOutMin,
@@ -299,6 +391,14 @@ contract PublicLibrary is IPublicLibrary {
         book.swap(0, amountOut, _to, '');
     }
 
+    /// @notice Swap input token for exact output token
+    /// @param _amountOut Exact output amount
+    /// @param _amountInMax Maximal accepted input amount
+    /// @param _tokenIn Address of input token
+    /// @param _idIn ERC1155 input token id
+    /// @param _tokenOut Address of output token
+    /// @param _to Swap output recipient
+    /// @param _deadline Timestamp after which swap is invalid
     function swapERC1155forExactERC20(
         uint256 _amountOut,
         uint256 _amountInMax,
@@ -332,6 +432,12 @@ contract PublicLibrary is IPublicLibrary {
     // ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝ ╚═╝╚══════╝╚══════╝       ╚═╝    ╚═════╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝ ╚═╝╚══════╝╚══════╝
     //
 
+    /// @notice Get amount of input token to provide for a target output amount between two ERC1155 tokens
+    /// @param _tokenIn Address of input token
+    /// @param _idIn ERC1155 input token id
+    /// @param _tokenOut Address of output token
+    /// @param _idOut ERC1155 output token id
+    /// @param _amountOut Target amount out
     function getERC155ToERC1155AmountIn(
         address _tokenIn,
         uint256 _idIn,
@@ -347,6 +453,12 @@ contract PublicLibrary is IPublicLibrary {
             );
     }
 
+    /// @notice Get amount of output token to provide for a target input amount for between two ERC1155 tokens
+    /// @param _tokenIn Address of input token
+    /// @param _idIn ERC1155 input token id
+    /// @param _tokenOut Address of output token
+    /// @param _idOut ERC1155 output token id
+    /// @param _amountIn Target amount in
     function getERC155ToERC1155AmountOut(
         address _tokenIn,
         uint256 _idIn,
@@ -362,6 +474,14 @@ contract PublicLibrary is IPublicLibrary {
             );
     }
 
+    /// @notice Open order on _tokenOut+_idOut of _amount tokens at price _price
+    /// @param _tokenIn Address of input token
+    /// @param _idIn ERC1155 input token id
+    /// @param _tokenOut Address of output token
+    /// @param _idOut ERC1155 output token id
+    /// @param _price Order price, interpreted as amount of _tokenOut to receive per _tokenIn
+    /// @param _amount Order size
+    /// @param _nextOrderIndex Index of the next order in the target Book
     function openERC1155ToERC1155Order(
         address _tokenIn,
         uint256 _idIn,
@@ -387,6 +507,15 @@ contract PublicLibrary is IPublicLibrary {
         }
     }
 
+    /// @notice Swap exact input token amount of output token
+    /// @param _amountIn Exact input amount
+    /// @param _amountOutMin Minimal accepted output amount
+    /// @param _tokenIn Address of input token
+    /// @param _idIn ERC1155 input token id
+    /// @param _tokenOut Address of output token
+    /// @param _idOut ERC1155 output token id
+    /// @param _to Swap output recipient
+    /// @param _deadline Timestamp after which swap is invalid
     function swapExactERC1155forERC1155(
         uint256 _amountIn,
         uint256 _amountOutMin,
@@ -413,6 +542,15 @@ contract PublicLibrary is IPublicLibrary {
         book.swap(tokenOutIsToken0 ? amountOut : 0, tokenOutIsToken0 ? 0 : amountOut, _to, '');
     }
 
+    /// @notice Swap input token for exact output token
+    /// @param _amountOut Exact output amount
+    /// @param _amountInMax Maximal accepted input amount
+    /// @param _tokenIn Address of input token
+    /// @param _idIn ERC1155 input token id
+    /// @param _tokenOut Address of output token
+    /// @param _idOut ERC1155 output token id
+    /// @param _to Swap output recipient
+    /// @param _deadline Timestamp after which swap is invalid
     function swapERC1155forExactERC1155(
         uint256 _amountOut,
         uint256 _amountInMax,
@@ -448,6 +586,15 @@ contract PublicLibrary is IPublicLibrary {
     // ╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚═╝   ╚═╝    ╚══════╝   ╚═╝   ╚══════╝╚═╝     ╚══════╝
     //
 
+    /// @notice Get array of amounts for swap path for an exact input amount
+    /// @dev amounts[0] is the input amount
+    /// @dev amounts[amounts.length - 1] is the final output amount of the trade
+    /// @dev _path is an encoded path argument that can contain both ERC20 and ERC1155 tokens
+    /// @dev An ERC20 encoded element consists of [0, uint256(tokenAddress)]
+    /// @dev An ERC1155 encoded element consists of [1, uint256(tokenAddress), uint256(tokenId)]
+    /// @dev The amounts length is equal to the number of elements in the path, not the raw number of values in the path
+    /// @param _path Encoded swap path argument
+    /// @param _amountIn Exact amount in provided to swap path
     function getAmountsOut(uint256[] calldata _path, uint256 _amountIn)
         external
         view
@@ -458,6 +605,15 @@ contract PublicLibrary is IPublicLibrary {
         return _getAmountsOut(td, _amountIn);
     }
 
+    /// @notice Get array of amounts for swap path for an exact output amount
+    /// @dev amounts[0] is the input amount
+    /// @dev amounts[amounts.length - 1] is the final output amount of the trade
+    /// @dev _path is an encoded path argument that can contain both ERC20 and ERC1155 tokens
+    /// @dev An ERC20 encoded element consists of [0, uint256(tokenAddress)]
+    /// @dev An ERC1155 encoded element consists of [1, uint256(tokenAddress), uint256(tokenId)]
+    /// @dev The amounts length is equal to the number of elements in the path, not the raw number of values in the path
+    /// @param _path Encoded swap path argument
+    /// @param _amountOut Exact amount out expected from swap path
     function getAmountsIn(uint256[] calldata _path, uint256 _amountOut)
         external
         view
@@ -468,6 +624,18 @@ contract PublicLibrary is IPublicLibrary {
         return _getAmountsIn(td, _amountOut);
     }
 
+    /// @notice Execute swap path for exact input amount
+    /// @dev amounts[0] is the input amount
+    /// @dev amounts[amounts.length - 1] is the final output amount of the trade
+    /// @dev _path is an encoded path argument that can contain both ERC20 and ERC1155 tokens
+    /// @dev An ERC20 encoded element consists of [0, uint256(tokenAddress)]
+    /// @dev An ERC1155 encoded element consists of [1, uint256(tokenAddress), uint256(tokenId)]
+    /// @dev The amounts length is equal to the number of elements in the path, not the raw number of values in the path
+    /// @param _amountIn Exact amount in provided
+    /// @param _amountOutMin Minimal expected output amount
+    /// @param _path Encoded swap path argument
+    /// @param _to Swap output recipient
+    /// @param _deadline Timestamp after which swap is invalid
     function swapExactInPath(
         uint256 _amountIn,
         uint256 _amountOutMin,
@@ -493,6 +661,18 @@ contract PublicLibrary is IPublicLibrary {
         _executeSwapPath(tokenDetails, amounts, _to);
     }
 
+    /// @notice Execute swap path for exact output amount
+    /// @dev amounts[0] is the input amount
+    /// @dev amounts[amounts.length - 1] is the final output amount of the trade
+    /// @dev _path is an encoded path argument that can contain both ERC20 and ERC1155 tokens
+    /// @dev An ERC20 encoded element consists of [0, uint256(tokenAddress)]
+    /// @dev An ERC1155 encoded element consists of [1, uint256(tokenAddress), uint256(tokenId)]
+    /// @dev The amounts length is equal to the number of elements in the path, not the raw number of values in the path
+    /// @param _amountOut Exact amount out expected
+    /// @param _amountInMax Maximal expected input amount
+    /// @param _path Encoded swap path argument
+    /// @param _to Swap output recipient
+    /// @param _deadline Timestamp after which swap is invalid
     function swapExactOutPath(
         uint256 _amountOut,
         uint256 _amountInMax,
@@ -527,6 +707,14 @@ contract PublicLibrary is IPublicLibrary {
     //  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
     //
 
+    /// @notice Closes an order position
+    /// @dev If order is partially filled, a mix between order input and order output token will be claimed
+    /// @dev If order is completely filled, only output token will be claimed
+    /// @dev If order is untouched, only initial order input token will be claimed
+    /// @dev User must approve at least _amount order tokens to this contract
+    /// @param _book Address of the Book where the order is owned
+    /// @param _id Order id
+    /// @param _amount Order amount to close
     function closeOrder(
         address _book,
         uint256 _id,
@@ -536,6 +724,12 @@ contract PublicLibrary is IPublicLibrary {
         IBook(_book).close(_id, msg.sender);
     }
 
+    /// @notice Settles multiple order on multiple books
+    /// @dev Settling an order will withdraw the filled amounts for every order and keep the remaining active
+    /// @param _books Array of books on which to settle orders
+    /// @param _orderCounts Array of order counts for each book
+    /// @param _orderIds Array of order id, length is equal to the sum of _orderCounts
+    /// @param _owner Owner of the orders
     function settle(
         address[] calldata _books,
         uint256[] calldata _orderCounts,
