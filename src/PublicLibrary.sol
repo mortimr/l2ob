@@ -225,7 +225,7 @@ contract PublicLibrary is IPublicLibrary {
             book = IPrinter(printer).createHybridBook(_tokenOut, _idOut, _tokenIn);
         }
 
-        IERC20(_tokenIn).transferFrom(msg.sender, address(book), _amount);
+        IERC1155(_tokenOut).safeTransferFrom(msg.sender, address(book), _idOut, _amount, '');
         IBook(book).open(_price, _nextOrderIndex, msg.sender);
 
         orderId = _getOrderId(1, _price);
@@ -309,7 +309,7 @@ contract PublicLibrary is IPublicLibrary {
     /// @param _idIn ERC1155 input token id
     /// @param _tokenOut Address of output token
     /// @param _amountOut Target amount out
-    function getERC155ToERC20AmountIn(
+    function getERC1155ToERC20AmountIn(
         address _tokenIn,
         uint256 _idIn,
         address _tokenOut,
@@ -323,7 +323,7 @@ contract PublicLibrary is IPublicLibrary {
     /// @param _idIn ERC1155 input token id
     /// @param _tokenOut Address of output token
     /// @param _amountIn Target amount in
-    function getERC155ToERC20AmountOut(
+    function getERC1155ToERC20AmountOut(
         address _tokenIn,
         uint256 _idIn,
         address _tokenOut,
@@ -353,7 +353,7 @@ contract PublicLibrary is IPublicLibrary {
             book = IPrinter(printer).createHybridBook(_tokenIn, _idIn, _tokenOut);
         }
 
-        IERC1155(_tokenIn).safeTransferFrom(msg.sender, address(book), _idIn, _amount, '');
+        IERC20(_tokenOut).transferFrom(msg.sender, address(book), _amount);
         IBook(book).open(_price, _nextOrderIndex, msg.sender);
 
         orderId = _getOrderId(0, _price);
@@ -438,7 +438,7 @@ contract PublicLibrary is IPublicLibrary {
     /// @param _tokenOut Address of output token
     /// @param _idOut ERC1155 output token id
     /// @param _amountOut Target amount out
-    function getERC155ToERC1155AmountIn(
+    function getERC1155ToERC1155AmountIn(
         address _tokenIn,
         uint256 _idIn,
         address _tokenOut,
@@ -459,7 +459,7 @@ contract PublicLibrary is IPublicLibrary {
     /// @param _tokenOut Address of output token
     /// @param _idOut ERC1155 output token id
     /// @param _amountIn Target amount in
-    function getERC155ToERC1155AmountOut(
+    function getERC1155ToERC1155AmountOut(
         address _tokenIn,
         uint256 _idIn,
         address _tokenOut,
@@ -778,17 +778,19 @@ contract PublicLibrary is IPublicLibrary {
     function _getAmountIn(
         uint256 _amountOut,
         uint256 _price,
-        uint8 _decimalSum
+        uint8 _decimalIn,
+        uint8 _decimalOut
     ) internal pure returns (uint256) {
-        return ((_amountOut * (10**_decimalSum)) / _price);
+        return (((_amountOut * (10**(_decimalIn + _decimalOut))) / _price) * (10**_decimalIn)) / (10**_decimalOut);
     }
 
     function _getAmountOut(
         uint256 _amountIn,
         uint256 _price,
-        uint8 _decimalSum
+        uint8 _decimalIn,
+        uint8 _decimalOut
     ) internal pure returns (uint256) {
-        return (_amountIn * _price) / 10**_decimalSum;
+        return (((_amountIn * _price) / 10**(_decimalIn + _decimalOut)) * (10**_decimalOut)) / (10**_decimalIn);
     }
 
     function _getMaxAmountOut(
@@ -800,14 +802,20 @@ contract PublicLibrary is IPublicLibrary {
         if (headIndex == 0) {
             revert InsufficientLiquidity(address(_book), _tokenOut, _amountIn);
         }
-        uint8 decimalSum = _book.decimals0() + _book.decimals1();
+        uint8 decimalIn = _tokenOut == 0 ? _book.decimals1() : _book.decimals0();
+        uint8 decimalOut = _tokenOut == 0 ? _book.decimals0() : _book.decimals1();
         while (_amountIn > 0) {
-            uint256 minAmountIn = _getAmountIn(order.remainingLiquidity + order.nextLiquidity, order.price, decimalSum);
+            uint256 minAmountIn = _getAmountIn(
+                order.remainingLiquidity + order.nextLiquidity,
+                order.price,
+                decimalIn,
+                decimalOut
+            );
             if (minAmountIn >= _amountIn) {
-                amountOut += _getAmountOut(_amountIn, order.price, decimalSum);
+                amountOut += _getAmountOut(_amountIn, order.price, decimalIn, decimalOut);
                 _amountIn = 0;
             } else {
-                amountOut += _getAmountOut(minAmountIn, order.price, decimalSum);
+                amountOut += _getAmountOut(minAmountIn, order.price, decimalIn, decimalOut);
                 _amountIn -= minAmountIn;
                 if (order.next == 0) {
                     revert InsufficientLiquidity(address(_book), _tokenOut, _amountIn);
@@ -826,14 +834,20 @@ contract PublicLibrary is IPublicLibrary {
         if (headIndex == 0) {
             revert InsufficientLiquidity(address(_book), _tokenOut, _amountOut);
         }
-        uint8 decimalSum = _book.decimals0() + _book.decimals1();
+        uint8 decimalIn = _tokenOut == 0 ? _book.decimals1() : _book.decimals0();
+        uint8 decimalOut = _tokenOut == 0 ? _book.decimals0() : _book.decimals1();
         while (_amountOut > 0) {
             uint256 maxAmountOut = order.remainingLiquidity + order.nextLiquidity;
             if (maxAmountOut >= _amountOut) {
-                amountIn += _getAmountIn(_amountOut, order.price, decimalSum);
+                amountIn += _getAmountIn(_amountOut, order.price, decimalIn, decimalOut);
                 _amountOut = 0;
             } else {
-                amountIn += _getAmountIn(order.remainingLiquidity + order.nextLiquidity, order.price, decimalSum);
+                amountIn += _getAmountIn(
+                    order.remainingLiquidity + order.nextLiquidity,
+                    order.price,
+                    decimalIn,
+                    decimalOut
+                );
                 _amountOut -= maxAmountOut;
                 if (order.next == 0) {
                     revert InsufficientLiquidity(address(_book), _tokenOut, _amountOut);

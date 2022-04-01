@@ -92,14 +92,14 @@ interface IPublicLibrary {
         uint256 _deadline
     ) external returns (uint256 amountIn);
 
-    function getERC155ToERC20AmountIn(
+    function getERC1155ToERC20AmountIn(
         address _tokenIn,
         uint256 _idIn,
         address _tokenOut,
         uint256 _amountOut
     ) external view returns (uint256 amountIn);
 
-    function getERC155ToERC20AmountOut(
+    function getERC1155ToERC20AmountOut(
         address _tokenIn,
         uint256 _idIn,
         address _tokenOut,
@@ -144,7 +144,7 @@ interface IPublicLibrary {
     // ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝ ╚═╝╚══════╝╚══════╝       ╚═╝    ╚═════╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝ ╚═╝╚══════╝╚══════╝
     //
 
-    function getERC155ToERC1155AmountIn(
+    function getERC1155ToERC1155AmountIn(
         address _tokenIn,
         uint256 _idIn,
         address _tokenOut,
@@ -152,7 +152,7 @@ interface IPublicLibrary {
         uint256 _amountOut
     ) external view returns (uint256 amountIn);
 
-    function getERC155ToERC1155AmountOut(
+    function getERC1155ToERC1155AmountOut(
         address _tokenIn,
         uint256 _idIn,
         address _tokenOut,
@@ -217,6 +217,46 @@ interface IPublicLibrary {
         address _to,
         uint256 _deadline
     ) external returns (uint256[] memory amounts);
+
+    // function swapMaxERC20ToERC20ForPrice(
+    //     uint256 _amountInMax,
+    //     uint256 _price,
+    //     address _tokenIn,
+    //     address _tokenOut,
+    //     address _to,
+    //     uint256 _deadline
+    // ) external returns (uint256 amountIn, uint256 amountOut);
+
+    // function swapMaxERC20ToERC1155ForPrice(
+    //     uint256 _amountInMax,
+    //     uint256 _price,
+    //     address _tokenIn,
+    //     address _tokenOut,
+    //     uint256 _idOut,
+    //     address _to,
+    //     uint256 _deadline
+    // ) external returns (uint256 amountIn, uint256 amountOut);
+
+    // function swapMaxERC1155ToERC20ForPrice(
+    //     uint256 _amountInMax,
+    //     uint256 _price,
+    //     address _tokenIn,
+    //     uint256 _idIn,
+    //     address _tokenOut,
+    //     address _to,
+    //     uint256 _deadline
+    // ) external returns (uint256 amountIn, uint256 amountOut);
+
+    // function swapMaxERC1155ToERC1155ForPrice(
+    //     uint256 _amountInMax,
+    //     uint256 _price,
+    //     address _tokenIn,
+    //     uint256 _idIn,
+    //     address _tokenOut,
+    //     uint256 _idOut,
+    //     address _to,
+    //     uint256 _deadline
+    // ) external returns (uint256 amountIn, uint256 amountOut);
 
     function closeOrder(
         address _book,

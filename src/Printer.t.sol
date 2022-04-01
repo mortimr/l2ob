@@ -65,9 +65,7 @@ contract PrinterERC20ERC20Test is DSTestPlus {
     }
 
     function testCreateBook() public {
-        startMeasuringGas('create ERC20+ERC20 book');
         address book = printer.createERC20Book(address(tokenA), address(tokenB));
-        stopMeasuringGas();
         if (address(tokenA) < address(tokenB)) {
             assert(IBook(book).token0() == address(tokenA));
             assert(IBook(book).token1() == address(tokenB));
@@ -120,9 +118,7 @@ contract PrinterERC1155ERC1155Test is DSTestPlus {
     }
 
     function testCreateBook() public {
-        startMeasuringGas('create ERC1155+ERC1155 book');
         address book = printer.createERC1155Book(address(tokenA), idA, address(tokenB), idB);
-        stopMeasuringGas();
         if (address(tokenA) < address(tokenB)) {
             assert(IBook(book).token0() == address(tokenA));
             assert(IBook(book).token1() == address(tokenB));
@@ -173,9 +169,7 @@ contract PrinterERC1155SingleTest is DSTestPlus {
     }
 
     function testCreateBook() public {
-        startMeasuringGas('create ERC1155+ERC1155 book');
         address book = printer.createERC1155Book(address(token), idA, address(token), idB);
-        stopMeasuringGas();
         if (idA < idB) {
             assert(IBook(book).token0() == address(token));
             assert(IBook(book).token1() == address(token));
@@ -227,9 +221,7 @@ contract PrinterERC1155ERC20Test is DSTestPlus {
     }
 
     function testCreateBook() public {
-        startMeasuringGas('create ERC1155+ERC20 book');
         address book = printer.createHybridBook(address(tokenA), idA, address(tokenB));
-        stopMeasuringGas();
         assert(IBook(book).token0() == address(tokenA));
         assert(IBook(book).token1() == address(tokenB));
         assert(IBook(book).decimals0() == 0);
@@ -270,9 +262,7 @@ contract PrinterERC20ERC1155Test is DSTestPlus {
     }
 
     function testCreateBook() public {
-        startMeasuringGas('create ERC20+ERC1155 book');
         address book = printer.createHybridBook(address(tokenB), idB, address(tokenA));
-        stopMeasuringGas();
         assert(IBook(book).token0() == address(tokenB));
         assert(IBook(book).token1() == address(tokenA));
         assert(IBook(book).decimals0() == 0);

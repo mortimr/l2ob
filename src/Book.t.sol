@@ -56,9 +56,7 @@ contract BookTest is DSTestPlus {
             vm.startPrank(bob);
             assert(pb.keyOrderIndexes(0) == 0);
             assert(pb.keyOrderIndexes(1) == 0);
-            startMeasuringGas('open T0');
             pb.open(price, 0, bob);
-            stopMeasuringGas();
             assert(pb.keyOrderIndexes(0) == 1);
             assert(pb.keyOrderIndexes(1) == 1);
         }
@@ -82,9 +80,7 @@ contract BookTest is DSTestPlus {
             vm.startPrank(bob);
             assert(pb.keyOrderIndexes(2) == 0);
             assert(pb.keyOrderIndexes(3) == 0);
-            startMeasuringGas('open T1');
             pb.open(price, 0, bob);
-            stopMeasuringGas();
             assert(pb.keyOrderIndexes(2) == 1);
             assert(pb.keyOrderIndexes(3) == 1);
         }
@@ -112,12 +108,12 @@ contract BookTest is DSTestPlus {
 
     function testOpenFiveAndCloseOrdersT0() public {
         uint256 price = 10**(18 + 6);
-        uint256 orderSize = 100 ether;
         for (uint256 i; i < 5; ++i) {
+            uint256 orderSize = (100 * price) / (10**18);
             token0.mint(address(pb), orderSize);
             vm.startPrank(bob);
             pb.open(price, uint64(i), bob);
-            price += ((price * 300) / 100000) + 1;
+            price += (((price / 10**18) * 301) / 100000) * 10**18;
             vm.stopPrank();
         }
         uint64[] memory indexes = new uint64[](10);
@@ -149,8 +145,8 @@ contract BookTest is DSTestPlus {
         checkIndexes(indexes, 5, 8);
 
         price = 10**(18 + 6);
-        price += ((price * 300) / 100000) + 1;
-        price += ((price * 300) / 100000) + 1;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
 
         vm.startPrank(bob);
         pb.safeTransferFrom(bob, address(pb), price << 2, pb.balanceOf(bob, price << 2), '');
@@ -180,7 +176,7 @@ contract BookTest is DSTestPlus {
         checkIndexes(indexes, 4, 6);
 
         price = 10**(18 + 6);
-        price += ((price * 300) / 100000) + 1;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
 
         vm.startPrank(bob);
         pb.safeTransferFrom(bob, address(pb), price << 2, pb.balanceOf(bob, price << 2), '');
@@ -205,9 +201,9 @@ contract BookTest is DSTestPlus {
         checkIndexes(indexes, 3, 4);
 
         price = 10**(18 + 6);
-        price += ((price * 300) / 100000) + 1;
-        price += ((price * 300) / 100000) + 1;
-        price += ((price * 300) / 100000) + 1;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
 
         vm.startPrank(bob);
         pb.safeTransferFrom(bob, address(pb), price << 2, pb.balanceOf(bob, price << 2), '');
@@ -241,10 +237,10 @@ contract BookTest is DSTestPlus {
         checkIndexes(indexes, 1, 0);
 
         price = 10**(18 + 6);
-        price += ((price * 300) / 100000) + 1;
-        price += ((price * 300) / 100000) + 1;
-        price += ((price * 300) / 100000) + 1;
-        price += ((price * 300) / 100000) + 1;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
 
         vm.startPrank(bob);
         pb.safeTransferFrom(bob, address(pb), price << 2, pb.balanceOf(bob, price << 2), '');
@@ -258,12 +254,12 @@ contract BookTest is DSTestPlus {
 
     function testOpenFiveAndCloseOrdersT1() public {
         uint256 price = 10**(18 + 6);
-        uint256 orderSize = 100 ether;
         for (uint256 i; i < 5; ++i) {
+            uint256 orderSize = (100 * price) / (10**18);
             token1.mint(address(pb), orderSize);
             vm.startPrank(bob);
             pb.open(price, uint64(i), bob);
-            price += ((price * 300) / 100000) + 1;
+            price += (((price / 10**18) * 301) / 100000) * 10**18;
             vm.stopPrank();
         }
         uint64[] memory indexes = new uint64[](10);
@@ -295,8 +291,8 @@ contract BookTest is DSTestPlus {
         checkIndexes(indexes, 5, 8);
 
         price = 10**(18 + 6);
-        price += ((price * 300) / 100000) + 1;
-        price += ((price * 300) / 100000) + 1;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
 
         vm.startPrank(bob);
         pb.safeTransferFrom(bob, address(pb), ((price << 1) + 1) << 1, pb.balanceOf(bob, ((price << 1) + 1) << 1), '');
@@ -326,7 +322,7 @@ contract BookTest is DSTestPlus {
         checkIndexes(indexes, 4, 6);
 
         price = 10**(18 + 6);
-        price += ((price * 300) / 100000) + 1;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
 
         vm.startPrank(bob);
         pb.safeTransferFrom(bob, address(pb), ((price << 1) + 1) << 1, pb.balanceOf(bob, ((price << 1) + 1) << 1), '');
@@ -351,9 +347,9 @@ contract BookTest is DSTestPlus {
         checkIndexes(indexes, 3, 4);
 
         price = 10**(18 + 6);
-        price += ((price * 300) / 100000) + 1;
-        price += ((price * 300) / 100000) + 1;
-        price += ((price * 300) / 100000) + 1;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
 
         vm.startPrank(bob);
         pb.safeTransferFrom(bob, address(pb), ((price << 1) + 1) << 1, pb.balanceOf(bob, ((price << 1) + 1) << 1), '');
@@ -387,10 +383,10 @@ contract BookTest is DSTestPlus {
         checkIndexes(indexes, 1, 0);
 
         price = 10**(18 + 6);
-        price += ((price * 300) / 100000) + 1;
-        price += ((price * 300) / 100000) + 1;
-        price += ((price * 300) / 100000) + 1;
-        price += ((price * 300) / 100000) + 1;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
+        price += (((price / 10**18) * 301) / 100000) * 10**18;
 
         vm.startPrank(bob);
         pb.safeTransferFrom(bob, address(pb), ((price << 1) + 1) << 1, pb.balanceOf(bob, ((price << 1) + 1) << 1), '');
@@ -428,9 +424,7 @@ contract BookTest is DSTestPlus {
             uint256 amount1In = (orderSize * price) / (10**(18 + 6));
             token1.mint(address(pb), amount1In);
             assert(token0.balanceOf(bob) == 0);
-            startMeasuringGas('swap T1T0');
             pb.swap(orderSize, 0, bob, '');
-            stopMeasuringGas();
             assert(token0.balanceOf(bob) == orderSize);
         }
         {
@@ -438,9 +432,7 @@ contract BookTest is DSTestPlus {
             assert(token1.balanceOf(bob) == 0);
             uint256[] memory ids = new uint256[](1);
             ids[0] = price << 2;
-            startMeasuringGas('settle');
             pb.settle(bob, ids);
-            stopMeasuringGas();
             assert(token1.balanceOf(bob) == expectedPayout);
         }
     }
@@ -501,9 +493,7 @@ contract BookTest is DSTestPlus {
             uint256 amount0In = (orderSize * price) / (10**(18 + 6));
             token0.mint(address(pb), amount0In);
             assert(token1.balanceOf(bob) == 0);
-            startMeasuringGas('swap T0T1');
             pb.swap(0, orderSize, bob, '');
-            stopMeasuringGas();
             assert(token1.balanceOf(bob) == orderSize);
         }
         {
@@ -511,9 +501,7 @@ contract BookTest is DSTestPlus {
             assert(token0.balanceOf(bob) == 0);
             uint256[] memory ids = new uint256[](1);
             ids[0] = ((price << 1) + 1) << 1;
-            startMeasuringGas('settle');
             pb.settle(bob, ids);
-            stopMeasuringGas();
             assert(token0.balanceOf(bob) == expectedPayout);
         }
     }
@@ -550,12 +538,13 @@ contract BookTest is DSTestPlus {
 
     function testFillTwoOrdersT1() public {
         uint256 price0 = 10**(18 + 6);
-        uint256 price1 = price0 + (((price0 * 300) / 100000) + 1);
+        uint256 price1 = price0 + (((price0 * 300) / 100000));
         uint256 order0 = ((price0 << 1) + 1) << 1;
         uint256 order1 = ((price1 << 1) + 1) << 1;
-        uint256 orderSize = 100 ether;
+        uint256 orderSize0 = (100 * price0) / 10**6;
+        uint256 orderSize1 = (100 * price1) / 10**6;
         {
-            token1.mint(address(pb), orderSize);
+            token1.mint(address(pb), orderSize0);
             vm.startPrank(bob);
             assert(pb.keyOrderIndexes(2) == 0);
             assert(pb.keyOrderIndexes(3) == 0);
@@ -565,7 +554,7 @@ contract BookTest is DSTestPlus {
             vm.stopPrank();
         }
         {
-            token1.mint(address(pb), orderSize);
+            token1.mint(address(pb), orderSize1);
             vm.startPrank(bob);
             assert(pb.keyOrderIndexes(2) == 1);
             assert(pb.keyOrderIndexes(3) == 1);
@@ -580,8 +569,8 @@ contract BookTest is DSTestPlus {
             assert(order.next == 0);
             assert(order.price == price0);
             assert(order.token == 1);
-            assert(order.liquidity == 100 ether);
-            assert(order.remainingLiquidity == 100 ether);
+            assert(order.liquidity == orderSize0);
+            assert(order.remainingLiquidity == orderSize0);
             assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(order0) == 0);
             assert(pb.rounds(bob, order0) == 0);
@@ -592,31 +581,28 @@ contract BookTest is DSTestPlus {
             assert(order.next == 1);
             assert(order.price == price1);
             assert(order.token == 1);
-            assert(order.liquidity == 100 ether);
-            assert(order.remainingLiquidity == 100 ether);
+            assert(order.liquidity == orderSize1);
+            assert(order.remainingLiquidity == orderSize1);
             assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(order1) == 0);
             assert(pb.rounds(bob, order1) == 0);
         }
         {
-            uint256 amount0In = ((orderSize * (10**(18 + 6))) / price0) + ((orderSize * (10**(18 + 6))) / price1);
+            uint256 amount0In = ((orderSize0 * (10**(18 + 6))) / price0) + ((orderSize1 * (10**(18 + 6))) / price1);
             token0.mint(address(pb), amount0In);
             assert(token1.balanceOf(bob) == 0);
-            startMeasuringGas('swap T0T1 two orders');
-            pb.swap(0, orderSize * 2, bob, '');
-            stopMeasuringGas();
-            assert(token1.balanceOf(bob) == orderSize * 2);
+            pb.swap(0, orderSize0 + orderSize1, bob, '');
+            assert(token1.balanceOf(bob) == orderSize0 + orderSize1);
         }
         {
-            uint256 expectedPayout = ((orderSize * (10**(18 + 6))) / price0) + ((orderSize * (10**(18 + 6))) / price1);
+            uint256 expectedPayout = ((orderSize0 * (10**(18 + 6))) / price0) +
+                ((orderSize1 * (10**(18 + 6))) / price1);
             assert(token0.balanceOf(bob) == 0);
             assert(token0.balanceOf(address(pb)) == expectedPayout);
             uint256[] memory ids = new uint256[](2);
             ids[0] = order0;
             ids[1] = order1;
-            startMeasuringGas('settle two orders');
             pb.settle(bob, ids);
-            stopMeasuringGas();
             assert(token0.balanceOf(bob) == expectedPayout);
             assert(token0.balanceOf(address(pb)) == 0);
         }
@@ -628,12 +614,13 @@ contract BookTest is DSTestPlus {
 
     function testFillTwoOrdersFailT1() public {
         uint256 price0 = 10**(18 + 6);
-        uint256 price1 = price0 + (((price0 * 300) / 100000) + 1);
+        uint256 price1 = price0 + (((price0 * 300) / 100000));
         uint256 order0 = ((price0 << 1) + 1) << 1;
         uint256 order1 = ((price1 << 1) + 1) << 1;
-        uint256 orderSize = 100 ether;
+        uint256 orderSize0 = (100 * price0) / (10**6);
+        uint256 orderSize1 = (100 * price1) / (10**6);
         {
-            token1.mint(address(pb), orderSize);
+            token1.mint(address(pb), orderSize0);
             vm.startPrank(bob);
             assert(pb.keyOrderIndexes(2) == 0);
             assert(pb.keyOrderIndexes(3) == 0);
@@ -643,7 +630,7 @@ contract BookTest is DSTestPlus {
             vm.stopPrank();
         }
         {
-            token1.mint(address(pb), orderSize);
+            token1.mint(address(pb), orderSize1);
             vm.startPrank(bob);
             assert(pb.keyOrderIndexes(2) == 1);
             assert(pb.keyOrderIndexes(3) == 1);
@@ -658,8 +645,8 @@ contract BookTest is DSTestPlus {
             assert(order.next == 0);
             assert(order.price == price0);
             assert(order.token == 1);
-            assert(order.liquidity == 100 ether);
-            assert(order.remainingLiquidity == 100 ether);
+            assert(order.liquidity == orderSize0);
+            assert(order.remainingLiquidity == orderSize0);
             assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(order0) == 0);
             assert(pb.rounds(bob, order0) == 0);
@@ -670,26 +657,27 @@ contract BookTest is DSTestPlus {
             assert(order.next == 1);
             assert(order.price == price1);
             assert(order.token == 1);
-            assert(order.liquidity == 100 ether);
-            assert(order.remainingLiquidity == 100 ether);
+            assert(order.liquidity == orderSize1);
+            assert(order.remainingLiquidity == orderSize1);
             assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(order1) == 0);
             assert(pb.rounds(bob, order1) == 0);
         }
         {
-            uint256 amount0In = ((orderSize * (10**(18 + 6))) / price0) + ((orderSize * (10**(18 + 6))) / price1);
+            uint256 amount0In = ((orderSize0 * (10**(18 + 6))) / price0) + ((orderSize1 * (10**(18 + 6))) / price1);
             token0.mint(address(pb), amount0In - 1);
             vm.expectRevert(abi.encodeWithSignature('InvalidBalances()'));
-            pb.swap(0, orderSize * 2, bob, '');
+            pb.swap(0, orderSize0 + orderSize1, bob, '');
         }
     }
 
     function testFillTwoOrdersT0() public {
         uint256 price0 = 10**(18 + 6);
-        uint256 price1 = price0 + (((price0 * 300) / 100000) + 1);
-        uint256 orderSize = 100 ether;
+        uint256 price1 = price0 + (((price0 * 300) / 100000));
+        uint256 orderSize0 = (100 * price0) / (10**18);
+        uint256 orderSize1 = (100 * price1) / (10**18);
         {
-            token0.mint(address(pb), orderSize);
+            token0.mint(address(pb), orderSize0);
             vm.startPrank(bob);
             assert(pb.keyOrderIndexes(0) == 0);
             assert(pb.keyOrderIndexes(1) == 0);
@@ -699,7 +687,7 @@ contract BookTest is DSTestPlus {
             vm.stopPrank();
         }
         {
-            token0.mint(address(pb), orderSize);
+            token0.mint(address(pb), orderSize1);
             vm.startPrank(bob);
             assert(pb.keyOrderIndexes(0) == 1);
             assert(pb.keyOrderIndexes(1) == 1);
@@ -715,8 +703,8 @@ contract BookTest is DSTestPlus {
             assert(order.next == 0);
             assert(order.price == price0);
             assert(order.token == 0);
-            assert(order.liquidity == 100 ether);
-            assert(order.remainingLiquidity == 100 ether);
+            assert(order.liquidity == orderSize0);
+            assert(order.remainingLiquidity == orderSize0);
             assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
@@ -728,32 +716,28 @@ contract BookTest is DSTestPlus {
             assert(order.next == 1);
             assert(order.price == price1);
             assert(order.token == 0);
-            assert(order.liquidity == 100 ether);
-            assert(order.remainingLiquidity == 100 ether);
+            assert(order.liquidity == orderSize1);
+            assert(order.remainingLiquidity == orderSize1);
             assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
         }
         {
-            uint256 amount1In = ((orderSize * (10**(18 + 6))) / price0) + ((orderSize * (10**(18 + 6))) / price1);
+            uint256 amount1In = ((orderSize0 * (10**(18 + 6))) / price0) + ((orderSize1 * (10**(18 + 6))) / price1);
             token1.mint(address(pb), amount1In);
             assert(token0.balanceOf(bob) == 0);
-            startMeasuringGas('swap T1T0 two orders');
-            pb.swap(orderSize * 2, 0, bob, '');
-            stopMeasuringGas();
-            assert(token0.balanceOf(bob) == orderSize * 2);
+            pb.swap(orderSize0 + orderSize1, 0, bob, '');
+            assert(token0.balanceOf(bob) == orderSize0 + orderSize1);
         }
         {
-            uint256 expectedPayout = ((orderSize * (10**(18 + 6))) / price0) + ((orderSize * (10**(18 + 6))) / price1);
+            uint256 expectedPayout = ((orderSize0 * (10**(18 + 6))) / price0) +
+                ((orderSize1 * (10**(18 + 6))) / price1);
             assert(token1.balanceOf(bob) == 0);
             assert(token1.balanceOf(address(pb)) == expectedPayout);
             uint256[] memory ids = new uint256[](2);
             ids[0] = price0 << 2;
             ids[1] = price1 << 2;
-            startMeasuringGas('settle two orders');
             pb.settle(bob, ids);
-            stopMeasuringGas();
-            console.log(expectedPayout);
             assert(token1.balanceOf(bob) == expectedPayout);
             assert(token1.balanceOf(address(pb)) == 0);
         }
@@ -765,10 +749,11 @@ contract BookTest is DSTestPlus {
 
     function testFillTwoOrdersFailT0() public {
         uint256 price0 = 10**(18 + 6);
-        uint256 price1 = price0 + (((price0 * 300) / 100000) + 1);
-        uint256 orderSize = 100 ether;
+        uint256 price1 = price0 + (((price0 * 300) / 100000));
+        uint256 orderSize0 = (price0 * 100) / (10**(6));
+        uint256 orderSize1 = (price1 * 100) / (10**(6));
         {
-            token0.mint(address(pb), orderSize);
+            token0.mint(address(pb), orderSize0);
             vm.startPrank(bob);
             assert(pb.keyOrderIndexes(0) == 0);
             assert(pb.keyOrderIndexes(1) == 0);
@@ -778,7 +763,7 @@ contract BookTest is DSTestPlus {
             vm.stopPrank();
         }
         {
-            token0.mint(address(pb), orderSize);
+            token0.mint(address(pb), orderSize1);
             vm.startPrank(bob);
             assert(pb.keyOrderIndexes(0) == 1);
             assert(pb.keyOrderIndexes(1) == 1);
@@ -794,8 +779,8 @@ contract BookTest is DSTestPlus {
             assert(order.next == 0);
             assert(order.price == price0);
             assert(order.token == 0);
-            assert(order.liquidity == 100 ether);
-            assert(order.remainingLiquidity == 100 ether);
+            assert(order.liquidity == orderSize0);
+            assert(order.remainingLiquidity == orderSize0);
             assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
@@ -807,17 +792,17 @@ contract BookTest is DSTestPlus {
             assert(order.next == 1);
             assert(order.price == price1);
             assert(order.token == 0);
-            assert(order.liquidity == 100 ether);
-            assert(order.remainingLiquidity == 100 ether);
+            assert(order.liquidity == orderSize1);
+            assert(order.remainingLiquidity == orderSize1);
             assert(order.nextLiquidity == 0);
             assert(pb.orderRounds(orderId) == 0);
             assert(pb.rounds(bob, orderId) == 0);
         }
         {
-            uint256 amount1In = ((orderSize * (10**(18 + 6))) / price0) + ((orderSize * (10**(18 + 6))) / price1);
+            uint256 amount1In = ((orderSize0 * (10**(18 + 6))) / price0) + ((orderSize1 * (10**(18 + 6))) / price1);
             token1.mint(address(pb), amount1In - 1);
             vm.expectRevert(abi.encodeWithSignature('InvalidBalances()'));
-            pb.swap(orderSize * 2, 0, bob, '');
+            pb.swap(orderSize0 + orderSize1, 0, bob, '');
         }
     }
 
@@ -851,9 +836,7 @@ contract BookTest is DSTestPlus {
             uint256 amount1In = ((orderSize / 2) * price) / (10**(18 + 6));
             token1.mint(address(pb), amount1In);
             assert(token0.balanceOf(bob) == 0);
-            startMeasuringGas('swap T1T0');
             pb.swap(orderSize / 2, 0, bob, '');
-            stopMeasuringGas();
             assert(token0.balanceOf(bob) == orderSize / 2);
         }
         {
@@ -861,9 +844,7 @@ contract BookTest is DSTestPlus {
             assert(token1.balanceOf(bob) == 0);
             uint256[] memory ids = new uint256[](1);
             ids[0] = price << 2;
-            startMeasuringGas('settle');
             pb.settle(bob, ids);
-            stopMeasuringGas();
             assert(token1.balanceOf(bob) == expectedPayout);
         }
         {
@@ -912,9 +893,7 @@ contract BookTest is DSTestPlus {
             uint256 amount1In = ((orderSize) * price) / (10**(18 + 6));
             token1.mint(address(pb), amount1In);
             assert(token0.balanceOf(bob) == 0);
-            startMeasuringGas('swap T1T0');
             pb.swap(orderSize, 0, bob, '');
-            stopMeasuringGas();
             assert(token0.balanceOf(bob) == orderSize);
         }
         {
@@ -922,9 +901,7 @@ contract BookTest is DSTestPlus {
             assert(token1.balanceOf(alice) == 0);
             uint256[] memory ids = new uint256[](1);
             ids[0] = price << 2;
-            startMeasuringGas('settle');
             pb.settle(alice, ids);
-            stopMeasuringGas();
             assert(token1.balanceOf(alice) == expectedPayout);
         }
         {
@@ -973,9 +950,7 @@ contract BookTest is DSTestPlus {
             uint256 amount1In = ((orderSize / 2) * price) / (10**(18 + 6));
             token1.mint(address(pb), amount1In);
             assert(token0.balanceOf(bob) == 0);
-            startMeasuringGas('swap T1T0');
             pb.swap(orderSize / 2, 0, bob, '');
-            stopMeasuringGas();
             assert(token0.balanceOf(bob) == orderSize / 2);
         }
         {
@@ -983,9 +958,7 @@ contract BookTest is DSTestPlus {
             assert(token1.balanceOf(bob) == 0);
             uint256[] memory ids = new uint256[](1);
             ids[0] = price << 2;
-            startMeasuringGas('settle');
             pb.settle(bob, ids);
-            stopMeasuringGas();
             assert(token1.balanceOf(bob) == expectedPayout);
         }
         {
@@ -1068,9 +1041,7 @@ contract BookTest is DSTestPlus {
             uint256 amount0In = ((orderSize / 2) * price) / (10**(18 + 6));
             token0.mint(address(pb), amount0In);
             assert(token1.balanceOf(bob) == 0);
-            startMeasuringGas('swap T0T1');
             pb.swap(0, orderSize / 2, bob, '');
-            stopMeasuringGas();
             assert(token1.balanceOf(bob) == orderSize / 2);
         }
         {
@@ -1078,9 +1049,7 @@ contract BookTest is DSTestPlus {
             assert(token0.balanceOf(bob) == 0);
             uint256[] memory ids = new uint256[](1);
             ids[0] = ((price << 1) + 1) << 1;
-            startMeasuringGas('settle');
             pb.settle(bob, ids);
-            stopMeasuringGas();
             assert(token0.balanceOf(bob) == expectedPayout);
         }
         {
@@ -1129,9 +1098,7 @@ contract BookTest is DSTestPlus {
             uint256 amount0In = ((orderSize) * price) / (10**(18 + 6));
             token0.mint(address(pb), amount0In);
             assert(token1.balanceOf(bob) == 0);
-            startMeasuringGas('swap T0T1');
             pb.swap(0, orderSize, bob, '');
-            stopMeasuringGas();
             assert(token1.balanceOf(bob) == orderSize);
         }
         {
@@ -1139,9 +1106,7 @@ contract BookTest is DSTestPlus {
             assert(token0.balanceOf(alice) == 0);
             uint256[] memory ids = new uint256[](1);
             ids[0] = ((price << 1) + 1) << 1;
-            startMeasuringGas('settle');
             pb.settle(alice, ids);
-            stopMeasuringGas();
             assert(token0.balanceOf(alice) == expectedPayout);
         }
         {
@@ -1190,9 +1155,7 @@ contract BookTest is DSTestPlus {
             uint256 amount0In = ((orderSize / 2) * price) / (10**(18 + 6));
             token0.mint(address(pb), amount0In);
             assert(token1.balanceOf(bob) == 0);
-            startMeasuringGas('swap T0T1');
             pb.swap(0, orderSize / 2, bob, '');
-            stopMeasuringGas();
             assert(token1.balanceOf(bob) == orderSize / 2);
         }
         {
@@ -1200,9 +1163,7 @@ contract BookTest is DSTestPlus {
             assert(token0.balanceOf(bob) == 0);
             uint256[] memory ids = new uint256[](1);
             ids[0] = ((price << 1) + 1) << 1;
-            startMeasuringGas('settle');
             pb.settle(bob, ids);
-            stopMeasuringGas();
             assert(token0.balanceOf(bob) == expectedPayout);
         }
         {
@@ -1285,9 +1246,7 @@ contract BookTest is DSTestPlus {
             uint256 amount1In = ((orderSize / 2) * price) / (10**(18 + 6));
             token1.mint(address(pb), amount1In);
             assert(token0.balanceOf(bob) == 0);
-            startMeasuringGas('swap T1T0');
             pb.swap(orderSize / 2, 0, bob, '');
-            stopMeasuringGas();
             assert(token0.balanceOf(bob) == orderSize / 2);
         }
         {
@@ -1336,9 +1295,7 @@ contract BookTest is DSTestPlus {
             uint256 amount1In = ((orderSize) * price) / (10**(18 + 6));
             token1.mint(address(pb), amount1In);
             assert(token0.balanceOf(bob) == 0);
-            startMeasuringGas('swap T1T0');
             pb.swap(orderSize, 0, bob, '');
-            stopMeasuringGas();
             assert(token0.balanceOf(bob) == orderSize);
         }
         {
@@ -1346,9 +1303,7 @@ contract BookTest is DSTestPlus {
             assert(token1.balanceOf(bob) == 0);
             uint256[] memory ids = new uint256[](1);
             ids[0] = price << 2;
-            startMeasuringGas('settle');
             pb.settle(bob, ids);
-            stopMeasuringGas();
             assert(token1.balanceOf(bob) == expectedPayout);
         }
         {
@@ -1356,9 +1311,7 @@ contract BookTest is DSTestPlus {
             assert(token1.balanceOf(alice) == 0);
             uint256[] memory ids = new uint256[](1);
             ids[0] = price << 2;
-            startMeasuringGas('settle');
             pb.settle(alice, ids);
-            stopMeasuringGas();
             assert(token1.balanceOf(alice) == expectedPayout);
         }
         {
@@ -1407,9 +1360,7 @@ contract BookTest is DSTestPlus {
             uint256 amount1In = ((orderSize / 2) * price) / (10**(18 + 6));
             token1.mint(address(pb), amount1In);
             assert(token0.balanceOf(bob) == 0);
-            startMeasuringGas('swap T1T0');
             pb.swap(orderSize / 2, 0, bob, '');
-            stopMeasuringGas();
             assert(token0.balanceOf(bob) == orderSize / 2);
         }
         {
@@ -1492,9 +1443,7 @@ contract BookTest is DSTestPlus {
             uint256 amount0In = ((orderSize / 2) * price) / (10**(18 + 6));
             token0.mint(address(pb), amount0In);
             assert(token1.balanceOf(bob) == 0);
-            startMeasuringGas('swap T0T1');
             pb.swap(0, orderSize / 2, bob, '');
-            stopMeasuringGas();
             assert(token1.balanceOf(bob) == orderSize / 2);
         }
         {
@@ -1543,9 +1492,7 @@ contract BookTest is DSTestPlus {
             uint256 amount0In = ((orderSize) * price) / (10**(18 + 6));
             token0.mint(address(pb), amount0In);
             assert(token1.balanceOf(bob) == 0);
-            startMeasuringGas('swap T0T1');
             pb.swap(0, orderSize, bob, '');
-            stopMeasuringGas();
             assert(token1.balanceOf(bob) == orderSize);
         }
         {
@@ -1553,9 +1500,7 @@ contract BookTest is DSTestPlus {
             assert(token0.balanceOf(bob) == 0);
             uint256[] memory ids = new uint256[](1);
             ids[0] = ((price << 1) + 1) << 1;
-            startMeasuringGas('settle');
             pb.settle(bob, ids);
-            stopMeasuringGas();
             assert(token0.balanceOf(bob) == expectedPayout);
         }
         {
@@ -1563,9 +1508,7 @@ contract BookTest is DSTestPlus {
             assert(token0.balanceOf(alice) == 0);
             uint256[] memory ids = new uint256[](1);
             ids[0] = ((price << 1) + 1) << 1;
-            startMeasuringGas('settle');
             pb.settle(alice, ids);
-            stopMeasuringGas();
             assert(token0.balanceOf(alice) == expectedPayout);
         }
         {
@@ -1614,9 +1557,7 @@ contract BookTest is DSTestPlus {
             uint256 amount0In = ((orderSize / 2) * price) / (10**(18 + 6));
             token0.mint(address(pb), amount0In);
             assert(token1.balanceOf(bob) == 0);
-            startMeasuringGas('swap T0T1');
             pb.swap(0, orderSize / 2, bob, '');
-            stopMeasuringGas();
             assert(token1.balanceOf(bob) == orderSize / 2);
         }
         {
@@ -1698,9 +1639,7 @@ contract BookTest is DSTestPlus {
             uint256 amount1In = ((orderSize / 2) * price) / (10**(18 + 6));
             token1.mint(address(pb), amount1In);
             assert(token0.balanceOf(bob) == 0);
-            startMeasuringGas('swap T1T0');
             pb.swap(orderSize / 2, 0, bob, '');
-            stopMeasuringGas();
             assert(token0.balanceOf(bob) == orderSize / 2);
         }
         {
@@ -1723,9 +1662,7 @@ contract BookTest is DSTestPlus {
             assert(token1.balanceOf(bob) == 0);
             uint256[] memory ids = new uint256[](1);
             ids[0] = price << 2;
-            startMeasuringGas('settle');
             pb.settle(bob, ids);
-            stopMeasuringGas();
             assert(token1.balanceOf(bob) == expectedPayout);
         }
         {
@@ -1820,9 +1757,7 @@ contract BookTest is DSTestPlus {
             uint256 amount0In = ((orderSize / 2) * price) / (10**(18 + 6));
             token0.mint(address(pb), amount0In);
             assert(token1.balanceOf(bob) == 0);
-            startMeasuringGas('swap T0T1');
             pb.swap(0, orderSize / 2, bob, '');
-            stopMeasuringGas();
             assert(token1.balanceOf(bob) == orderSize / 2);
         }
         {
@@ -1845,9 +1780,7 @@ contract BookTest is DSTestPlus {
             assert(token0.balanceOf(bob) == 0);
             uint256[] memory ids = new uint256[](1);
             ids[0] = ((price << 1) + 1) << 1;
-            startMeasuringGas('settle');
             pb.settle(bob, ids);
-            stopMeasuringGas();
             assert(token0.balanceOf(bob) == expectedPayout);
         }
         {
@@ -1915,9 +1848,9 @@ contract BookTest is DSTestPlus {
 
     function testOpenAndClose100OrdersT0() public {
         uint256 price = 10**(18 + 6);
-        uint256 orderSize = 100 ether;
 
         for (uint256 i; i < 100; ++i) {
+            uint256 orderSize = (100 * price) / (10**18);
             token0.mint(address(pb), orderSize);
             pb.open(price, uint64(i), bob);
 
@@ -1930,14 +1863,16 @@ contract BookTest is DSTestPlus {
             assert(order.remainingLiquidity == orderSize);
             assert(order.nextLiquidity == 0);
 
-            assert(pb.balanceOf(bob, price << 2) == orderSize);
+            assert(pb.balanceOf(bob, price << 2) == (orderSize * 10**(18 + 6)) / price);
+            assert(token0.balanceOf(bob) == 0);
 
-            price += ((price * 300) / 100000) + 1;
+            price += (((price / 10**18) * 301) / 100000) * 10**18;
         }
 
         price = 10**(18 + 6);
 
         for (uint256 i; i < 100; ++i) {
+            uint256 orderSize = (100 * price) / (10**18);
             vm.startPrank(bob);
             pb.safeTransferFrom(bob, address(pb), price << 2, pb.balanceOf(bob, price << 2), '');
             vm.stopPrank();
@@ -1952,7 +1887,7 @@ contract BookTest is DSTestPlus {
             token0.transfer(address(0), orderSize);
             vm.stopPrank();
 
-            price += ((price * 300) / 100000) + 1;
+            price += (((price / 10**18) * 301) / 100000) * 10**18;
         }
 
         assert(pb.keyOrderIndexes(0) == 0);
@@ -1962,9 +1897,9 @@ contract BookTest is DSTestPlus {
 
     function testOpenAndClose100OrdersT1() public {
         uint256 price = 10**(18 + 6);
-        uint256 orderSize = 100 ether;
 
         for (uint256 i; i < 100; ++i) {
+            uint256 orderSize = (100 * price) / (10**18);
             token1.mint(address(pb), orderSize);
             pb.open(price, uint64(i), bob);
 
@@ -1977,14 +1912,16 @@ contract BookTest is DSTestPlus {
             assert(order.remainingLiquidity == orderSize);
             assert(order.nextLiquidity == 0);
 
-            assert(pb.balanceOf(bob, ((price << 1) + 1) << 1) == orderSize);
+            assert(pb.balanceOf(bob, ((price << 1) + 1) << 1) == (orderSize * 10**(18 + 6)) / price);
+            assert(token1.balanceOf(bob) == 0);
 
-            price += ((price * 300) / 100000) + 1;
+            price += (((price / 10**18) * 301) / 100000) * 10**18;
         }
 
         price = 10**(18 + 6);
 
         for (uint256 i; i < 100; ++i) {
+            uint256 orderSize = (100 * price) / (10**18);
             vm.startPrank(bob);
             pb.safeTransferFrom(
                 bob,
@@ -2005,7 +1942,7 @@ contract BookTest is DSTestPlus {
             token1.transfer(address(0), orderSize);
             vm.stopPrank();
 
-            price += ((price * 300) / 100000) + 1;
+            price += (((price / 10**18) * 301) / 100000) * 10**18;
         }
 
         assert(pb.keyOrderIndexes(2) == 0);

@@ -24,7 +24,7 @@ import './interfaces/IBook.sol';
 /// @author Iulian Rotaru
 /// @notice This contract can be used to create / delete / fill orders
 /// @dev This contract should only be called by another contract
-contract Book is Token, IBook {
+contract Book is Token, IBook, TokenReceiver {
     address public override printer;
     uint256 public override id0;
     uint256 public override id1;
@@ -210,6 +210,8 @@ contract Book is Token, IBook {
         }
     }
 
+    error InvalidOutputAmount();
+
     /// @notice Performs an optimistic swap (sends funds before checking received balance) that fills as many orders as required to retrieve the needed amounts.
     /// @dev Flash swaps can be performed by other contracts by providing the extra data parameter and implementing the IBookCaller interface
     /// @param _amount0Out Amount of token0 to retrieve from the contract
@@ -386,9 +388,9 @@ contract Book is Token, IBook {
 
     function _checkDelta(uint256 _basePrice, uint256 _newPrice) internal pure returns (bool) {
         if (_basePrice > _newPrice) {
-            return (_basePrice - _newPrice) > (_basePrice * MIN_PRICE_DELTA) / BASE;
+            return (_basePrice - _newPrice) >= (_basePrice * MIN_PRICE_DELTA) / BASE;
         } else {
-            return (_newPrice - _basePrice) > (_basePrice * MIN_PRICE_DELTA) / BASE;
+            return (_newPrice - _basePrice) >= (_basePrice * MIN_PRICE_DELTA) / BASE;
         }
     }
 
@@ -636,10 +638,14 @@ contract Book is Token, IBook {
     function _mint_ordersToken(
         uint256 _orderId,
         uint256 _orderIndex,
+        uint256 _price,
         uint256 _amount,
         address _to
     ) internal {
-        _mintTokens(_to, _orderId, _amount);
+        uint256 orderAmount = _getAmountIn(_amount, _price);
+
+        _mintTokens(_to, _orderId, orderAmount);
+
         if (_orders[_orderIndex].remainingLiquidity == _orders[_orderIndex].liquidity) {
             _orders[_orderIndex].liquidity += _amount;
             _orders[_orderIndex].remainingLiquidity += _amount;
@@ -675,6 +681,16 @@ contract Book is Token, IBook {
         emit Sync(reserve0, reserve1);
     }
 
+    error InvalidOrderCreationInput(uint256 price, uint256 amountIn);
+
+    function _checkOrderInput(uint256 _price, uint256 _amountIn) internal view {
+        if (((_amountIn * 10**(decimals0 + decimals1)) % _price) != 0) {
+            revert InvalidOrderCreationInput(_price, _amountIn);
+        }
+    }
+
+    error InvalidPrice();
+
     function _openOrder(
         uint256 _price,
         uint64 _nextOrderIndex,
@@ -687,10 +703,20 @@ contract Book is Token, IBook {
             revert MultiTokenOrderCreation();
         }
 
+        if ((_price % 10**(amount0In > amount1In ? decimals0 : decimals1)) != 0) {
+            revert InvalidPrice();
+        }
+
+        if (amount0In > 0) {
+            _checkOrderInput(_price, amount0In);
+        } else {
+            _checkOrderInput(_price, amount1In);
+        }
+
         uint8 token = amount0In > amount1In ? 0 : 1;
         uint256 amountIn = amount0In > amount1In ? amount0In : amount1In;
         (uint256 orderId, uint256 orderIndex) = _insertOrder(token, _price, _nextOrderIndex);
-        _mint_ordersToken(orderId, orderIndex, amountIn, _to);
+        _mint_ordersToken(orderId, orderIndex, _price, amountIn, _to);
         Order memory order = _orders[orderIndex];
 
         if (order.liquidity != order.remainingLiquidity) {
@@ -729,22 +755,16 @@ contract Book is Token, IBook {
             if (balance == 0) {
                 return;
             }
-            uint256 price = _orderId >> 2;
             uint8 orderOutputToken = (uint8((_orderId >> 1) & 1)) ^ 1;
-            uint256 orderAmountOut;
             if (_amount == 0 || _amount == balance) {
-                orderAmountOut = _getAmountIn(balance, price);
-                _transferOut(orderOutputToken, _to, orderAmountOut);
+                _transferOut(orderOutputToken, _to, balance);
             } else {
-                uint256 orderToAmountOut = _getAmountIn(_amount, price);
-                _transferOut(orderOutputToken, _to, orderToAmountOut);
-                uint256 orderOwnerAmountOut = _getAmountIn(balance - _amount, price);
-                _transferOut(orderOutputToken, _to, orderOwnerAmountOut);
-                orderAmountOut = orderToAmountOut + orderOwnerAmountOut;
+                _transferOut(orderOutputToken, _to, _amount);
+                _transferOut(orderOutputToken, _owner, balance - _amount);
             }
             _decreaseOrderReserves(
-                uint112(orderOutputToken == 0 ? orderAmountOut : 0),
-                uint112(orderOutputToken == 1 ? orderAmountOut : 0)
+                uint112(orderOutputToken == 0 ? balance : 0),
+                uint112(orderOutputToken == 1 ? balance : 0)
             );
             _burnTokens(_owner, _orderId, balance);
             if (rounds[_owner][_orderId] > 0) {
@@ -774,21 +794,13 @@ contract Book is Token, IBook {
                 return;
             }
 
-            uint256 orderAmountOut = _getAmountIn(balance, _order.price);
             if (_amount == 0 || _amount == balance) {
-                orderAmountOut = _getAmountIn(balance, _order.price);
-                _transferOut(_order.token ^ 1, _to, orderAmountOut);
+                _transferOut(_order.token ^ 1, _to, balance);
             } else {
-                uint256 orderToAmountOut = _getAmountIn(_amount, _order.price);
-                _transferOut(_order.token ^ 1, _to, orderToAmountOut);
-                uint256 orderOwnerAmountOut = _getAmountIn(balance - _amount, _order.price);
-                _transferOut(_order.token ^ 1, _to, orderOwnerAmountOut);
-                orderAmountOut = orderToAmountOut + orderOwnerAmountOut;
+                _transferOut(_order.token ^ 1, _to, _amount);
+                _transferOut(_order.token ^ 1, _owner, balance - _amount);
             }
-            _decreaseOrderReserves(
-                uint112(_order.token == 1 ? orderAmountOut : 0),
-                uint112(_order.token == 0 ? orderAmountOut : 0)
-            );
+            _decreaseOrderReserves(uint112(_order.token == 1 ? balance : 0), uint112(_order.token == 0 ? balance : 0));
             _burnTokens(_owner, _orderId, balance);
 
             if (totalSupply[_orderId] == 0) {
@@ -801,19 +813,19 @@ contract Book is Token, IBook {
 
                     if (_orders[_orderIndex].liquidity == rawBalance) {
                         // if all liquidity is moving to untouched, bring order to next round
-                        uint256 newLiq = rawBalance - balance + _orders[_orderIndex].nextLiquidity;
+                        uint256 newLiq = _getAmountOut(rawBalance - balance, _order.price) +
+                            _orders[_orderIndex].nextLiquidity;
                         _orders[_orderIndex].liquidity = newLiq;
                         _orders[_orderIndex].remainingLiquidity = newLiq;
                         _orders[_orderIndex].nextLiquidity = 0;
                         orderRounds[_orderId] += 1;
                     } else {
                         // otherwise, compute unfilled amount and add it to nextLiquidity
-                        _orders[_orderIndex].nextLiquidity += rawBalance - balance;
-                        _orders[_orderIndex].liquidity -= rawBalance;
-                        _orders[_orderIndex].remainingLiquidity -= rawBalance - balance;
+                        _orders[_orderIndex].nextLiquidity += _getAmountOut(rawBalance - balance, _order.price);
+                        _orders[_orderIndex].liquidity -= _getAmountOut(rawBalance, _order.price);
+                        _orders[_orderIndex].remainingLiquidity -= _getAmountOut(rawBalance - balance, _order.price);
                     }
                 } else {
-                    // total fill
                     // total fill can only happen in round id < current round id, meaning it has no impact in current liquidity
                     rounds[_owner][_orderId] = 0;
                 }
@@ -883,12 +895,13 @@ contract Book is Token, IBook {
         uint64 orderIndex = orderIndexes[_orderId];
         Order memory order = _orders[orderIndex];
         _bringToUntouchedRound(_orderId, orderIndex, order, address(this), _to, 0);
-        uint256 orderAmountIn = _balanceOf[address(this)][_orderId];
+        uint256 balance = _balanceOf[address(this)][_orderId];
+        uint256 orderAmountIn = _getAmountOut(balance, order.price);
         if (orderAmountIn == 0) {
             return;
         }
         _transferOut(order.token, _to, orderAmountIn);
-        _burnTokens(address(this), _orderId, orderAmountIn);
+        _burnTokens(address(this), _orderId, balance);
         _decreaseOrderReserves(
             uint112(order.token == 0 ? orderAmountIn : 0),
             uint112(order.token == 1 ? orderAmountIn : 0)
@@ -898,11 +911,20 @@ contract Book is Token, IBook {
         }
     }
 
+    error AmountOutNotMultipleOfPrice(uint256 _amountOut, uint256 _price);
+
+    function _checkPriceMultiple(uint256 _amountOut, uint256 _price) internal view {
+        if ((_amountOut * (10**(decimals0 + decimals1))) % _price != 0) {
+            revert AmountOutNotMultipleOfPrice(_amountOut, _price);
+        }
+    }
+
     function _consumeFromOrderPartialLiq(
         Order memory _order,
         uint64 _orderIndex,
         uint256 _amountOut
     ) internal returns (uint256 amountOutLeft, uint256 debt) {
+        _checkPriceMultiple(_amountOut, _order.price);
         uint256 orderId = _getOrderId(_order.token, _order.price);
         _orders[_orderIndex].remainingLiquidity -= _amountOut;
 
@@ -929,6 +951,7 @@ contract Book is Token, IBook {
 
             _removeOrder(_getOrderId(_order.token, _order.price), _orderIndex);
         } else {
+            _checkPriceMultiple(_amountOut, _order.price);
             debt = _getAmountIn(_amountOut + _orders[_orderIndex].remainingLiquidity, _order.price);
             _orders[_orderIndex].remainingLiquidity = _orders[_orderIndex].nextLiquidity - _amountOut;
             _orders[_orderIndex].liquidity = _orders[_orderIndex].nextLiquidity;
@@ -955,5 +978,25 @@ contract Book is Token, IBook {
         } else {
             return _consumeFromOrderPartialLiq(order, _firstOrderIndex, _amountOut);
         }
+    }
+
+    function onERC1155Received(
+        address,
+        address,
+        uint256,
+        uint256,
+        bytes calldata
+    ) external pure override returns (bytes4) {
+        return TokenReceiver.onERC1155Received.selector;
+    }
+
+    function onERC1155BatchReceived(
+        address,
+        address,
+        uint256[] calldata,
+        uint256[] calldata,
+        bytes calldata
+    ) external pure override returns (bytes4) {
+        return TokenReceiver.onERC1155BatchReceived.selector;
     }
 }
