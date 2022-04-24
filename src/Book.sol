@@ -435,9 +435,7 @@ contract Book is Token, IBook, TokenReceiver {
                 }
             }
 
-            uint256 price = _id >> 2;
-
-            return (balance * price) / (10**(decimals0 + decimals1));
+            return balance;
         } else {
             // order token
             uint256 balance = _balanceOf[_owner][_id];

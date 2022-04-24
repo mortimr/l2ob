@@ -55,2803 +55,1515 @@ contract PublicLibraryERC20ToERC20Test is DSTestPlus {
     Printer internal printer;
     PublicLibrary internal publicLibrary;
     ERC20Mock internal tokenA;
+    uint8 internal decimalsA;
+    uint256[3] internal tokenA_;
     ERC20Mock internal tokenB;
+    uint8 internal decimalsB;
+    uint256[3] internal tokenB_;
     ERC20Mock internal tokenC;
+    uint8 internal decimalsC;
+    uint256[3] internal tokenC_;
     Book internal book;
     bool internal tokenAisZero;
 
     address internal bob = address(1);
     address internal alice = address(2);
 
+    function _addressToUint(address _a) internal pure returns (uint256 u) {
+        assembly {
+            u := _a
+        }
+    }
+
+    function _uintToAddress(uint256 _v) internal pure returns (address a) {
+        assembly {
+            a := _v
+        }
+    }
+
     function setUp() public {
         printer = new Printer();
         tokenA = new ERC20Mock('US Dollar', 'USDC', 18);
-        tokenB = new ERC20Mock('Wrapped Ether', 'WETH', 18);
-        tokenC = new ERC20Mock('Dai Stablecoin', 'DAI', 18);
+        decimalsA = 18;
+        tokenA_[0] = 0;
+        tokenA_[1] = _addressToUint(address(tokenA));
+        tokenA_[2] = 0;
+        tokenB = new ERC20Mock('Wrapped Ether', 'WETH', 12);
+        decimalsB = 12;
+        tokenB_[0] = 0;
+        tokenB_[1] = _addressToUint(address(tokenB));
+        tokenB_[2] = 0;
+        tokenC = new ERC20Mock('Dai Stablecoin', 'DAI', 6);
+        decimalsC = 12;
+        tokenC_[0] = 0;
+        tokenC_[1] = _addressToUint(address(tokenC));
+        tokenC_[2] = 0;
         book = Book(printer.createERC20Book(address(tokenA), address(tokenB)));
         printer.createERC20Book(address(tokenB), address(tokenC));
         publicLibrary = new PublicLibrary(address(printer));
         tokenAisZero = book.token0() == address(tokenA);
     }
 
-    function testGetAmountOutInsufficientLiqAB() public {
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                'InsufficientLiquidity(address,uint8,uint256)',
-                address(book),
-                tokenAisZero ? 1 : 0,
-                1 ether
-            )
-        );
-        publicLibrary.getERC20ToERC20AmountOut(address(tokenA), address(tokenB), 1 ether);
+    function _approve(
+        uint256[3] memory token,
+        address to,
+        uint256 amount
+    ) internal {
+        if (token[0] == 0) {
+            IERC20(_uintToAddress(token[1])).approve(to, amount);
+        } else {
+            IERC1155(_uintToAddress(token[1])).setApprovalForAll(to, true);
+        }
     }
 
-    function testGetAmountOutInsufficientLiqBA() public {
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                'InsufficientLiquidity(address,uint8,uint256)',
-                address(book),
-                tokenAisZero ? 0 : 1,
-                1 ether
-            )
-        );
-        publicLibrary.getERC20ToERC20AmountOut(address(tokenB), address(tokenA), 1 ether);
+    function _mint(
+        uint256[3] memory token,
+        address to,
+        uint256 amount
+    ) internal {
+        if (token[0] == 0) {
+            ERC20Mock(_uintToAddress(token[1])).mint(to, amount);
+        } else {
+            ERC1155Mock(_uintToAddress(token[1])).mint(to, token[2], amount);
+        }
     }
 
-    function testGetAmountOutSingleOrderAB() public {
-        uint256 sellPrice = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-        uint256 sellSize = 1 ether;
-        uint256 buySize = 2000 ether;
-        tokenB.mint(address(bob), sellSize);
-        vm.startPrank(bob);
-        tokenB.approve(address(publicLibrary), sellSize);
-        publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPrice, sellSize, 0);
-        vm.stopPrank();
-        uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenA), address(tokenB), buySize);
-        assert(amountOut == sellSize);
+    function _getTokenOut(uint256[3] memory _tokenIn, uint256[3] memory _tokenOut) internal pure returns (uint8) {
+        if (_tokenIn[0] == 0 && _tokenOut[0] == 0) {
+            return _tokenOut[1] < _tokenIn[1] ? 0 : 1;
+        } else if (_tokenIn[0] == 1 && _tokenOut[0] == 0) {
+            return 1;
+        } else if (_tokenIn[0] == 0 && _tokenOut[0] == 1) {
+            return 0;
+        } else {
+            return (_tokenIn[1] == _tokenOut[1] ? _tokenOut[2] < _tokenIn[2] : _tokenOut[1] < _tokenIn[1]) ? 0 : 1;
+        }
     }
 
-    function testGetAmountOutSingleOrderBA() public {
-        uint256 sellPrice = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellSize = 2000 ether;
-        uint256 buySize = 1 ether;
-        tokenA.mint(address(bob), sellSize);
-        vm.startPrank(bob);
-        tokenA.approve(address(publicLibrary), sellSize);
-        publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPrice, sellSize, 0);
-        vm.stopPrank();
-        uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenB), address(tokenA), buySize);
-        assert(amountOut == sellSize);
+    function _balanceOf(uint256[3] memory _token, address _owner) internal view returns (uint256) {
+        if (_token[0] == 0) {
+            return IERC20(_uintToAddress(_token[1])).balanceOf(_owner);
+        } else {
+            return IERC1155(_uintToAddress(_token[1])).balanceOf(_owner, _token[2]);
+        }
     }
 
-    function testGetAmountOutMultiOrderAB() public {
-        uint256 sellPriceOne = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-        uint256 sellPriceTwo = (10**36) / uint256(4000); // Read as => buy 1 USDC for 1/4000 ETH
-        uint256 sellSize = 1 ether;
-        uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-        tokenB.mint(address(bob), sellSize);
-        vm.startPrank(bob);
-        tokenB.approve(address(publicLibrary), sellSize);
-        publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPriceOne, sellSize / 2, 0);
-        publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPriceTwo, sellSize / 2, 0);
-        vm.stopPrank();
-        uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenA), address(tokenB), buySize);
-        assert(amountOut == sellSize);
+    function _getOrderToken(address _book, uint256 _orderId) internal pure returns (uint256[3] memory token) {
+        token[0] = 1;
+        token[1] = _addressToUint(_book);
+        token[2] = _orderId;
     }
 
-    function testGetAmountOutMultiOrderBA() public {
-        uint256 sellPriceOne = (10**36) * 2000; // Read as => buy 1 ETH for 2000 ETH
-        uint256 sellPriceTwo = (10**36) * uint256(4000); // Read as => buy 1 ETH for 4000 USDC
-        uint256 sellSize = 3000 ether;
-        uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-        tokenA.mint(address(bob), sellSize);
-        vm.startPrank(bob);
-        tokenA.approve(address(publicLibrary), sellSize);
-        publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPriceOne, sellSize / 2, 0);
-        publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPriceTwo, sellSize / 2, 1);
-        vm.stopPrank();
-        uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenB), address(tokenA), buySize);
-        assert(amountOut == sellSize);
+    function _getAmountIn(
+        uint256 _amountOut,
+        uint256 _price,
+        uint8 _decimals
+    ) internal pure returns (uint256) {
+        return ((_amountOut * (10**(_decimals))) / _price);
     }
 
-    function testGetAmountInInsufficientLiqAB() public {
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                'InsufficientLiquidity(address,uint8,uint256)',
-                address(book),
-                tokenAisZero ? 1 : 0,
-                1 ether
-            )
-        );
-        publicLibrary.getERC20ToERC20AmountIn(address(tokenA), address(tokenB), 1 ether);
+    function _getAmountOut(
+        uint256 _amountIn,
+        uint256 _price,
+        uint8 _decimals
+    ) internal pure returns (uint256) {
+        return ((_amountIn * _price) / 10**(_decimals));
     }
 
-    function testGetAmountInInsufficientLiqBA() public {
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                'InsufficientLiquidity(address,uint8,uint256)',
-                address(book),
-                tokenAisZero ? 0 : 1,
-                1 ether
-            )
-        );
-        publicLibrary.getERC20ToERC20AmountIn(address(tokenB), address(tokenA), 1 ether);
-    }
-
-    function testGetAmountInSingleOrderAB() public {
-        uint256 sellPrice = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-        uint256 sellSize = 1 ether;
-        uint256 buySize = 2000 ether;
-        tokenB.mint(address(bob), sellSize);
-        vm.startPrank(bob);
-        tokenB.approve(address(publicLibrary), sellSize);
-        publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPrice, sellSize, 0);
-        vm.stopPrank();
-        uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenA), address(tokenB), sellSize);
-        assert(amountIn == buySize);
-    }
-
-    function testGetAmountInSingleOrderBA() public {
-        uint256 sellPrice = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellSize = 2000 ether;
-        uint256 buySize = 1 ether;
-        tokenA.mint(address(bob), sellSize);
-        vm.startPrank(bob);
-        tokenA.approve(address(publicLibrary), sellSize);
-        publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPrice, sellSize, 0);
-        vm.stopPrank();
-        uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenB), address(tokenA), sellSize);
-        assert(amountIn == buySize);
-    }
-
-    function testGetAmountInMultiOrderAB() public {
-        uint256 sellPriceOne = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-        uint256 sellPriceTwo = (10**36) / uint256(4000); // Read as => buy 1 USDC for 1/4000 ETH
-        uint256 sellSize = 1 ether;
-        uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-        tokenB.mint(address(bob), sellSize);
-        vm.startPrank(bob);
-        tokenB.approve(address(publicLibrary), sellSize);
-        publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPriceOne, sellSize / 2, 0);
-        publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPriceTwo, sellSize / 2, 0);
-        vm.stopPrank();
-        uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenA), address(tokenB), sellSize);
-        assert(amountIn == buySize);
-    }
-
-    function testGetAmountInMultiOrderBA() public {
-        uint256 sellPriceOne = (10**36) * 2000; // Read as => buy 1 ETH for 2000 ETH
-        uint256 sellPriceTwo = (10**36) * uint256(4000); // Read as => buy 1 ETH for 4000 USDC
-        uint256 sellSize = 3000 ether;
-        uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-        tokenA.mint(address(bob), sellSize);
-        vm.startPrank(bob);
-        tokenA.approve(address(publicLibrary), sellSize);
-        publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPriceOne, sellSize / 2, 0);
-        publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPriceTwo, sellSize / 2, 1);
-        vm.stopPrank();
-        uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenB), address(tokenA), sellSize);
-        assert(amountIn == buySize);
-    }
-
-    function testSwapE20to20AB() public {
-        uint256 sellPrice = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-        uint256 sellSize = 1 ether;
-        uint256 buySize = 2000 ether;
-        uint256 orderId;
+    function testOpenAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        _mint(tokenB_, bob, amount);
         {
-            tokenB.mint(address(bob), sellSize);
             vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSize);
-            (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPrice, sellSize, 0);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            uint256[3] memory orderToken = _getOrderToken(_book, orderId);
+            assertEq(_balanceOf(orderToken, bob), _getAmountIn(amount, price, decimalsA + decimalsB));
             vm.stopPrank();
         }
+    }
+
+    function testOpenABInvalidPrice() public {
+        uint256 price = (10**(decimalsA + decimalsB) * 2000) + 1;
+        uint256 amount = 2000 ether;
+        _mint(tokenB_, bob, amount);
         {
-            uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenA), address(tokenB), buySize);
-            tokenA.mint(address(alice), buySize);
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            vm.expectRevert(abi.encodeWithSignature('InvalidPrice()'));
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+    }
+
+    function testOpenABNullAmount() public {
+        uint256 price = (10**(decimalsA + decimalsB) * 2000);
+        uint256 amount = 0;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            vm.expectRevert(abi.encodeWithSignature('MultiTokenOrderCreation()'));
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+    }
+
+    function testOpenBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            uint256[3] memory orderToken = _getOrderToken(_book, orderId);
+            assertEq(_balanceOf(orderToken, bob), _getAmountIn(amount, price, decimalsA + decimalsB));
+            vm.stopPrank();
+        }
+    }
+
+    function testOpenBAInvalidPrice() public {
+        uint256 price = (10**(decimalsA + decimalsB) / 2000) + 1;
+        uint256 amount = 2000 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            vm.expectRevert(abi.encodeWithSignature('InvalidPrice()'));
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+    }
+
+    function testOpenBANullAmount() public {
+        uint256 price = (10**(decimalsA + decimalsB) / 2000);
+        uint256 amount = 0;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            vm.expectRevert(abi.encodeWithSignature('MultiTokenOrderCreation()'));
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+    }
+
+    function testGetAmountOutAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        assertEq(publicLibrary.getAmountOut(1 ether, tokenA_, tokenB_), amount);
+    }
+
+    function testGetAmountInAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        assertEq(publicLibrary.getAmountIn(amount, tokenA_, tokenB_), 1 ether);
+    }
+
+    function testGetAmountOutBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        assertEq(publicLibrary.getAmountOut(2000 ether, tokenA_, tokenB_), amount);
+    }
+
+    function testGetAmountInBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        assertEq(publicLibrary.getAmountIn(amount, tokenA_, tokenB_), 2000 ether);
+    }
+
+    function testOpenTwoAscAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            uint256[3] memory orderToken = _getOrderToken(_book, orderId);
+            assertEq(_balanceOf(orderToken, bob), _getAmountIn(amount, price, decimalsA + decimalsB));
+            vm.stopPrank();
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            uint256[3] memory orderToken = _getOrderToken(_book, orderId);
+            assertEq(_balanceOf(orderToken, bob), _getAmountIn(amount, price, decimalsA + decimalsB));
+            vm.stopPrank();
+        }
+    }
+
+    function testOpenTwoDescAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            uint256[3] memory orderToken = _getOrderToken(_book, orderId);
+            assertEq(_balanceOf(orderToken, bob), _getAmountIn(amount, price, decimalsA + decimalsB));
+            vm.stopPrank();
+        }
+        price = 10**(decimalsA + decimalsB) * 2200;
+        amount = 2200 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 1);
+            uint256[3] memory orderToken = _getOrderToken(_book, orderId);
+            assertEq(_balanceOf(orderToken, bob), _getAmountIn(amount, price, decimalsA + decimalsB));
+            vm.stopPrank();
+        }
+    }
+
+    function testOpenTwoAscBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            uint256[3] memory orderToken = _getOrderToken(_book, orderId);
+            assertEq(_balanceOf(orderToken, bob), _getAmountIn(amount, price, decimalsA + decimalsB));
+            vm.stopPrank();
+        }
+        price = 10**(decimalsA + decimalsB) / 4000;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            uint256[3] memory orderToken = _getOrderToken(_book, orderId);
+            assertEq(_balanceOf(orderToken, bob), _getAmountIn(amount, price, decimalsA + decimalsB));
+            vm.stopPrank();
+        }
+    }
+
+    function testOpenTwoDescBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000; // How many WETH per USDC
+        uint256 amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            uint256[3] memory orderToken = _getOrderToken(_book, orderId);
+            assertEq(_balanceOf(orderToken, bob), _getAmountIn(amount, price, decimalsA + decimalsB));
+            vm.stopPrank();
+        }
+        price = 10**(decimalsA + decimalsB) / 500;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 1);
+            uint256[3] memory orderToken = _getOrderToken(_book, orderId);
+            assertEq(_balanceOf(orderToken, bob), _getAmountIn(amount, price, decimalsA + decimalsB));
+            vm.stopPrank();
+        }
+    }
+
+    function testGetAmountOutTwoOrdersAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+
+        assertEq(publicLibrary.getAmountOut(2 ether, tokenA_, tokenB_), 3800 ether);
+    }
+
+    function testGetAmountInTwoOrdersAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+
+        assertEq(publicLibrary.getAmountIn(3800 ether, tokenA_, tokenB_), 2 ether);
+    }
+
+    function testGetAmountOutTwoOrdersBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+        price = 10**(decimalsA + decimalsB) / 4000;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+
+        assertEq(publicLibrary.getAmountOut(6000 ether, tokenB_, tokenA_), 2 ether);
+    }
+
+    function testGetAmountInTwoOrdersBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+        price = 10**(decimalsA + decimalsB) / 4000;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+
+        assertEq(publicLibrary.getAmountIn(2 ether, tokenB_, tokenA_), 6000 ether);
+    }
+
+    function testSwapETFTUniqueOrderAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(amount, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        {
             vm.startPrank(alice);
-            tokenA.approve(address(publicLibrary), buySize);
-            publicLibrary.swapExactERC20forERC20(
-                buySize,
-                amountOut,
-                address(tokenA),
-                address(tokenB),
-                alice,
-                block.timestamp
-            );
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactTokenForToken(amountIn, 2000 ether, tokenA_, tokenB_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 2000 ether);
             vm.stopPrank();
-            assert(tokenB.balanceOf(alice) == amountOut);
         }
-        {
-            vm.startPrank(bob);
-            address[] memory books = new address[](1);
-            books[0] = address(book);
-            uint256[] memory idCounts = new uint256[](1);
-            idCounts[0] = 1;
-            uint256[] memory ids = new uint256[](1);
-            ids[0] = orderId;
-            publicLibrary.settle(books, idCounts, ids, bob);
-            vm.stopPrank();
-            assert(tokenA.balanceOf(bob) == buySize);
-        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
     }
 
-    function testSwapE20to20FailAB() public {
-        uint256 sellPrice = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-        uint256 sellSize = 1 ether;
-        uint256 buySize = 2000 ether;
-        uint256 orderId;
+    function testSwapETFTHalfUniqueOrderAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
         {
-            tokenB.mint(address(bob), sellSize);
             vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSize);
-            (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPrice, sellSize, 0);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
             vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
         }
+        uint256 amountIn = publicLibrary.getAmountIn(amount / 2, tokenA_, tokenB_);
+        uint256 totalAmountIn = publicLibrary.getAmountIn(amount, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        assertEq(_balanceOf(order, bob), totalAmountIn);
         {
-            uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenA), address(tokenB), buySize);
-            tokenA.mint(address(alice), buySize);
             vm.startPrank(alice);
-            tokenA.approve(address(publicLibrary), buySize - 1);
-            vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 999999999999999999));
-            publicLibrary.swapExactERC20forERC20(
-                buySize - 1,
-                amountOut,
-                address(tokenA),
-                address(tokenB),
-                alice,
-                block.timestamp
-            );
-        }
-    }
-
-    function testSwapE20to20MultiOrderAB() public {
-        uint256 sellPriceOne = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-        uint256 sellPriceTwo = (10**36) / uint256(4000); // Read as => buy 1 USDC for 1/4000 ETH
-        uint256 sellSize = 1 ether;
-        uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-        uint256 orderIdOne;
-        uint256 orderIdTwo;
-        {
-            tokenB.mint(address(bob), sellSize);
-            vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSize);
-            (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceOne,
-                sellSize / 2,
-                0
-            );
-            (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceTwo,
-                sellSize / 2,
-                0
-            );
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactTokenForToken(amountIn, 1000 ether, tokenA_, tokenB_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 1000 ether);
             vm.stopPrank();
         }
+        assertEq(_balanceOf(order, bob), totalAmountIn / 2);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), totalAmountIn / 2);
+    }
+
+    function testSwapETFTTwoOrderAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        _mint(tokenB_, bob, amount);
         {
-            uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenA), address(tokenB), buySize);
-            tokenA.mint(address(alice), buySize);
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+
+        uint256 amountIn = publicLibrary.getAmountIn(3800 ether, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        {
             vm.startPrank(alice);
-            tokenA.approve(address(publicLibrary), buySize);
-            publicLibrary.swapExactERC20forERC20(
-                buySize,
-                amountOut,
-                address(tokenA),
-                address(tokenB),
-                alice,
-                block.timestamp
-            );
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactTokenForToken(amountIn, 3800 ether, tokenA_, tokenB_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 3800 ether);
             vm.stopPrank();
-            assert(tokenB.balanceOf(alice) == amountOut);
-        }
-        {
-            vm.startPrank(bob);
-            address[] memory books = new address[](1);
-            books[0] = address(book);
-            uint256[] memory idCounts = new uint256[](1);
-            idCounts[0] = 2;
-            uint256[] memory ids = new uint256[](2);
-            ids[0] = orderIdOne;
-            ids[1] = orderIdTwo;
-            publicLibrary.settle(books, idCounts, ids, bob);
-            vm.stopPrank();
-            assert(tokenA.balanceOf(bob) == buySize);
         }
     }
 
-    function testSwapE20to20MultiOrderABFail() public {
-        uint256 sellPriceOne = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-        uint256 sellPriceTwo = (10**36) / uint256(4000); // Read as => buy 1 USDC for 1/4000 ETH
-        uint256 sellSize = 1 ether;
-        uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-        uint256 orderIdOne;
-        uint256 orderIdTwo;
+    function testSwapETFTTwoOrderOneFilledAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
         {
-            tokenB.mint(address(bob), sellSize);
             vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSize);
-            (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceOne,
-                sellSize / 2,
-                0
-            );
-            (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceTwo,
-                sellSize / 2,
-                0
-            );
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
             vm.stopPrank();
         }
+
+        uint256 amountIn = publicLibrary.getAmountIn(2000 ether, tokenA_, tokenB_);
+        uint256 firstOrderAmountData = publicLibrary.getAmountIn(2000 ether, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        assertEq(_balanceOf(order, bob), firstOrderAmountData);
         {
-            uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenA), address(tokenB), buySize);
-            tokenA.mint(address(alice), buySize);
             vm.startPrank(alice);
-            tokenA.approve(address(publicLibrary), buySize - 1);
-            vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 999999999999999999));
-            publicLibrary.swapExactERC20forERC20(
-                buySize - 1,
-                amountOut,
-                address(tokenA),
-                address(tokenB),
-                alice,
-                block.timestamp
-            );
-        }
-    }
-
-    function testSwapE20to20BA() public {
-        uint256 sellPrice = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellSize = 2000 ether;
-        uint256 buySize = 1 ether;
-        uint256 orderId;
-        {
-            tokenA.mint(address(bob), sellSize);
-            vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), sellSize);
-            (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPrice, sellSize, 0);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactTokenForToken(amountIn, 2000 ether, tokenA_, tokenB_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 2000 ether);
             vm.stopPrank();
         }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), firstOrderAmountData);
+    }
+
+    function testSwapETFTDeadlineCrossedAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
         {
-            uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenB), address(tokenA), buySize);
-            tokenB.mint(address(alice), buySize);
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(amount, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        {
             vm.startPrank(alice);
-            tokenB.approve(address(publicLibrary), buySize);
-            publicLibrary.swapExactERC20forERC20(
-                buySize,
-                amountOut,
-                address(tokenB),
-                address(tokenA),
-                alice,
-                block.timestamp
-            );
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            vm.expectRevert(abi.encodeWithSignature('DeadlineCrossed()'));
+            vm.warp(100);
+            publicLibrary.swapExactTokenForToken(amountIn, 2000 ether, tokenA_, tokenB_, alice, block.timestamp - 1);
             vm.stopPrank();
-            assert(tokenA.balanceOf(alice) == amountOut);
-        }
-        {
-            vm.startPrank(bob);
-            address[] memory books = new address[](1);
-            books[0] = address(book);
-            uint256[] memory idCounts = new uint256[](1);
-            idCounts[0] = 1;
-            uint256[] memory ids = new uint256[](1);
-            ids[0] = orderId;
-            publicLibrary.settle(books, idCounts, ids, bob);
-            vm.stopPrank();
-            assert(tokenB.balanceOf(bob) == buySize);
         }
     }
 
-    function testSwapE20to20FailBA() public {
-        uint256 sellPrice = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellSize = 2000 ether;
-        uint256 buySize = 1 ether;
-        uint256 orderId;
+    function testSwapETFTAmountOutTooLowAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
         {
-            tokenA.mint(address(bob), sellSize);
             vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), sellSize);
-            (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPrice, sellSize, 0);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
             vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
         }
+        uint256 amountIn = publicLibrary.getAmountIn(amount, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
         {
-            uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenB), address(tokenA), buySize);
-            tokenB.mint(address(alice), buySize);
             vm.startPrank(alice);
-            tokenB.approve(address(publicLibrary), buySize - 1);
-            vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 1999999999999999998000));
-            publicLibrary.swapExactERC20forERC20(
-                buySize - 1,
-                amountOut,
-                address(tokenB),
-                address(tokenA),
-                alice,
-                block.timestamp
-            );
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 2000000000000000000000));
+            publicLibrary.swapExactTokenForToken(amountIn, 2000 ether + 1, tokenA_, tokenB_, alice, block.timestamp);
+            vm.stopPrank();
         }
     }
 
-    function testSwapE20to20MultiOrderBA() public {
-        uint256 sellPriceOne = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellPriceTwo = (10**36) * uint256(4000); // Read as => buy 1 ETH for 4000 USDC
-        uint256 sellSize = 2000 ether;
-        uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-        uint256 orderIdOne;
-        uint256 orderIdTwo;
+    // duplicate for BA
+    function testSwapETFTUniqueOrderBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
         {
-            tokenA.mint(address(bob), sellSize);
             vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), sellSize);
-            (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-                address(tokenB),
-                address(tokenA),
-                sellPriceOne,
-                sellSize / 2,
-                0
-            );
-            (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-                address(tokenB),
-                address(tokenA),
-                sellPriceTwo,
-                sellSize / 2,
-                1
-            );
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
             vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
         }
-
+        uint256 amountIn = publicLibrary.getAmountIn(amount, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
         {
-            uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenB), address(tokenA), buySize);
-            tokenB.mint(address(alice), buySize);
             vm.startPrank(alice);
-            tokenB.approve(address(publicLibrary), buySize);
-            publicLibrary.swapExactERC20forERC20(
-                buySize,
-                amountOut,
-                address(tokenB),
-                address(tokenA),
-                alice,
-                block.timestamp
-            );
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapExactTokenForToken(amountIn, 1 ether, tokenB_, tokenA_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), 1 ether);
             vm.stopPrank();
-            assert(tokenA.balanceOf(alice) == amountOut);
         }
-        {
-            vm.startPrank(bob);
-            address[] memory books = new address[](1);
-            books[0] = address(book);
-            uint256[] memory idCounts = new uint256[](1);
-            idCounts[0] = 2;
-            uint256[] memory ids = new uint256[](2);
-            ids[0] = orderIdOne;
-            ids[1] = orderIdTwo;
-            publicLibrary.settle(books, idCounts, ids, bob);
-            vm.stopPrank();
-            assert(tokenB.balanceOf(bob) == buySize);
-        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
     }
 
-    function testSwapE20to20MultiOrderBAFail() public {
-        uint256 sellPriceOne = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellPriceTwo = (10**36) * uint256(4000); // Read as => buy 1 ETH for 4000 USDC
-        uint256 sellSize = 2000 ether;
-        uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-        uint256 orderIdOne;
-        uint256 orderIdTwo;
+    function testSwapETFTHalfUniqueOrderBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
         {
-            tokenA.mint(address(bob), sellSize);
             vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), sellSize);
-            (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-                address(tokenB),
-                address(tokenA),
-                sellPriceOne,
-                sellSize / 2,
-                0
-            );
-            (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-                address(tokenB),
-                address(tokenA),
-                sellPriceTwo,
-                sellSize / 2,
-                1
-            );
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
             vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
         }
+        uint256 amountIn = publicLibrary.getAmountIn(amount / 2, tokenB_, tokenA_);
+        uint256 totalAmountIn = publicLibrary.getAmountIn(amount, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
+        assertEq(_balanceOf(order, bob), totalAmountIn);
         {
-            uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenB), address(tokenA), buySize);
-            tokenB.mint(address(alice), buySize);
             vm.startPrank(alice);
-            tokenB.approve(address(publicLibrary), buySize - 1);
-            vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 1999999999999999998000));
-            publicLibrary.swapExactERC20forERC20(
-                buySize - 1,
-                amountOut,
-                address(tokenB),
-                address(tokenA),
-                alice,
-                block.timestamp
-            );
-        }
-    }
-
-    function testSwap20toE20AB() public {
-        uint256 sellPrice = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-        uint256 sellSize = 1 ether;
-        uint256 buySize = 2000 ether;
-        uint256 orderId;
-        {
-            tokenB.mint(address(bob), sellSize);
-            vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSize);
-            (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPrice, sellSize, 0);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapExactTokenForToken(amountIn, 0.5 ether, tokenB_, tokenA_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), 0.5 ether);
             vm.stopPrank();
         }
+        assertEq(_balanceOf(order, bob), totalAmountIn / 2);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), totalAmountIn / 2);
+    }
+
+    function testSwapETFTTwoOrderBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        _mint(tokenA_, bob, amount);
         {
-            uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenA), address(tokenB), sellSize);
-            tokenA.mint(address(alice), amountIn);
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+        price = 10**(decimalsA + decimalsB) / 4000;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+
+        uint256 amountIn = publicLibrary.getAmountIn(2 ether, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
+        {
             vm.startPrank(alice);
-            tokenA.approve(address(publicLibrary), amountIn);
-            publicLibrary.swapERC20forExactERC20(
-                sellSize,
-                amountIn,
-                address(tokenA),
-                address(tokenB),
-                alice,
-                block.timestamp
-            );
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapExactTokenForToken(amountIn, 2 ether, tokenB_, tokenA_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), 2 ether);
             vm.stopPrank();
-            assert(tokenB.balanceOf(alice) == sellSize);
-        }
-        {
-            vm.startPrank(bob);
-            address[] memory books = new address[](1);
-            books[0] = address(book);
-            uint256[] memory idCounts = new uint256[](1);
-            idCounts[0] = 1;
-            uint256[] memory ids = new uint256[](1);
-            ids[0] = orderId;
-            publicLibrary.settle(books, idCounts, ids, bob);
-            vm.stopPrank();
-            assert(tokenA.balanceOf(bob) == buySize);
         }
     }
 
-    function testSwap20toE20FailAB() public {
-        uint256 sellPrice = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-        uint256 sellSize = 1 ether;
-        uint256 orderId;
+    function testSwapETFTTwoOrderOneFilledBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
         {
-            tokenB.mint(address(bob), sellSize);
             vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSize);
-            (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPrice, sellSize, 0);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) / 4000;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
             vm.stopPrank();
         }
+
+        uint256 amountIn = publicLibrary.getAmountIn(1 ether, tokenB_, tokenA_);
+        uint256 firstOrderAmountData = publicLibrary.getAmountIn(1 ether, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
+        assertEq(_balanceOf(order, bob), firstOrderAmountData);
         {
-            uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenA), address(tokenB), sellSize);
-            tokenA.mint(address(alice), amountIn);
             vm.startPrank(alice);
-            tokenA.approve(address(publicLibrary), amountIn);
-            vm.expectRevert(abi.encodeWithSignature('AmountInTooHigh(uint256)', 2000000000000000000000));
-            publicLibrary.swapERC20forExactERC20(
-                sellSize,
-                amountIn - 1,
-                address(tokenA),
-                address(tokenB),
-                alice,
-                block.timestamp
-            );
-        }
-    }
-
-    function testSwap20toE20MultiOrderAB() public {
-        uint256 sellPriceOne = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-        uint256 sellPriceTwo = (10**36) / uint256(4000); // Read as => buy 1 USDC for 1/4000 ETH
-        uint256 sellSize = 1 ether;
-        uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-        uint256 orderIdOne;
-        uint256 orderIdTwo;
-        {
-            tokenB.mint(address(bob), sellSize);
-            vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSize);
-            (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceOne,
-                sellSize / 2,
-                0
-            );
-            (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceTwo,
-                sellSize / 2,
-                0
-            );
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapExactTokenForToken(amountIn, 1 ether, tokenB_, tokenA_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), 1 ether);
             vm.stopPrank();
         }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), firstOrderAmountData);
+    }
+
+    function testSwapETFTDeadlineCrossedBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
         {
-            uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenA), address(tokenB), sellSize);
-            tokenA.mint(address(alice), amountIn);
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(amount, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
+        {
             vm.startPrank(alice);
-            tokenA.approve(address(publicLibrary), amountIn);
-            publicLibrary.swapERC20forExactERC20(
-                sellSize,
-                amountIn,
-                address(tokenA),
-                address(tokenB),
-                alice,
-                block.timestamp
-            );
+            _approve(tokenB_, address(publicLibrary), amount);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            vm.warp(100);
+            vm.expectRevert(abi.encodeWithSignature('DeadlineCrossed()'));
+            publicLibrary.swapExactTokenForToken(amountIn, 1 ether, tokenB_, tokenA_, alice, block.timestamp - 1);
             vm.stopPrank();
-            assert(tokenB.balanceOf(alice) == sellSize);
-        }
-        {
-            vm.startPrank(bob);
-            address[] memory books = new address[](1);
-            books[0] = address(book);
-            uint256[] memory idCounts = new uint256[](1);
-            idCounts[0] = 2;
-            uint256[] memory ids = new uint256[](2);
-            ids[0] = orderIdOne;
-            ids[1] = orderIdTwo;
-            publicLibrary.settle(books, idCounts, ids, bob);
-            vm.stopPrank();
-            assert(tokenA.balanceOf(bob) == buySize);
         }
     }
 
-    function testSwap20toE20MultiOrderABFail() public {
-        uint256 sellPriceOne = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-        uint256 sellPriceTwo = (10**36) / uint256(4000); // Read as => buy 1 USDC for 1/4000 ETH
-        uint256 sellSize = 1 ether;
-        uint256 orderIdOne;
-        uint256 orderIdTwo;
+    function testSwapETFTAmountOutTooLowBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
         {
-            tokenB.mint(address(bob), sellSize);
             vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSize);
-            (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceOne,
-                sellSize / 2,
-                0
-            );
-            (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceTwo,
-                sellSize / 2,
-                0
-            );
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
             vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
         }
+        uint256 amountIn = publicLibrary.getAmountIn(amount, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
         {
-            uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenA), address(tokenB), sellSize);
-            tokenA.mint(address(alice), amountIn);
             vm.startPrank(alice);
-            tokenA.approve(address(publicLibrary), amountIn);
-            vm.expectRevert(abi.encodeWithSignature('AmountInTooHigh(uint256)', 3000000000000000000000));
-            publicLibrary.swapERC20forExactERC20(
-                sellSize,
-                amountIn - 1,
-                address(tokenA),
-                address(tokenB),
-                alice,
-                block.timestamp
-            );
-        }
-    }
-
-    function testSwap20toE20BA() public {
-        uint256 sellPrice = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellSize = 2000 ether;
-        uint256 buySize = 1 ether;
-        uint256 orderId;
-        {
-            tokenA.mint(address(bob), sellSize);
-            vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), sellSize);
-            (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPrice, sellSize, 0);
-            vm.stopPrank();
-        }
-        {
-            uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenB), address(tokenA), sellSize);
-            tokenB.mint(address(alice), amountIn);
-            vm.startPrank(alice);
-            tokenB.approve(address(publicLibrary), amountIn);
-            publicLibrary.swapERC20forExactERC20(
-                sellSize,
-                amountIn,
-                address(tokenB),
-                address(tokenA),
-                alice,
-                block.timestamp
-            );
-            vm.stopPrank();
-            assert(tokenA.balanceOf(alice) == sellSize);
-        }
-        {
-            vm.startPrank(bob);
-            address[] memory books = new address[](1);
-            books[0] = address(book);
-            uint256[] memory idCounts = new uint256[](1);
-            idCounts[0] = 1;
-            uint256[] memory ids = new uint256[](1);
-            ids[0] = orderId;
-            publicLibrary.settle(books, idCounts, ids, bob);
-            vm.stopPrank();
-            assert(tokenB.balanceOf(bob) == buySize);
-        }
-    }
-
-    function testSwap20toE20FailBA() public {
-        uint256 sellPrice = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellSize = 2000 ether;
-        uint256 orderId;
-        {
-            tokenA.mint(address(bob), sellSize);
-            vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), sellSize);
-            (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPrice, sellSize, 0);
-            vm.stopPrank();
-        }
-        {
-            uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenB), address(tokenA), sellSize);
-            tokenB.mint(address(alice), amountIn);
-            vm.startPrank(alice);
-            tokenB.approve(address(publicLibrary), amountIn - 1);
-            vm.expectRevert(abi.encodeWithSignature('AmountInTooHigh(uint256)', 1000000000000000000));
-            publicLibrary.swapERC20forExactERC20(
-                sellSize,
-                amountIn - 1,
-                address(tokenB),
-                address(tokenA),
-                alice,
-                block.timestamp
-            );
-        }
-    }
-
-    function testSwap20toE20MultiOrderBA() public {
-        uint256 sellPriceOne = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellPriceTwo = (10**36) * uint256(4000); // Read as => buy 1 ETH for 4000 USDC
-        uint256 sellSize = 2000 ether;
-        uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-        uint256 orderIdOne;
-        uint256 orderIdTwo;
-        {
-            tokenA.mint(address(bob), sellSize);
-            vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), sellSize);
-            (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-                address(tokenB),
-                address(tokenA),
-                sellPriceOne,
-                sellSize / 2,
-                0
-            );
-            (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-                address(tokenB),
-                address(tokenA),
-                sellPriceTwo,
-                sellSize / 2,
-                1
-            );
-            vm.stopPrank();
-        }
-
-        {
-            uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenB), address(tokenA), sellSize);
-            tokenB.mint(address(alice), amountIn);
-            vm.startPrank(alice);
-            tokenB.approve(address(publicLibrary), amountIn);
-            publicLibrary.swapERC20forExactERC20(
-                sellSize,
-                amountIn,
-                address(tokenB),
-                address(tokenA),
-                alice,
-                block.timestamp
-            );
-            vm.stopPrank();
-            assert(tokenA.balanceOf(alice) == sellSize);
-        }
-        {
-            vm.startPrank(bob);
-            address[] memory books = new address[](1);
-            books[0] = address(book);
-            uint256[] memory idCounts = new uint256[](1);
-            idCounts[0] = 2;
-            uint256[] memory ids = new uint256[](2);
-            ids[0] = orderIdOne;
-            ids[1] = orderIdTwo;
-            publicLibrary.settle(books, idCounts, ids, bob);
-            vm.stopPrank();
-            assert(tokenB.balanceOf(bob) == buySize);
-        }
-    }
-
-    function testSwap20toE20MultiOrderBAFail() public {
-        uint256 sellPriceOne = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellPriceTwo = (10**36) * uint256(4000); // Read as => buy 1 ETH for 4000 USDC
-        uint256 sellSize = 2000 ether;
-        uint256 orderIdOne;
-        uint256 orderIdTwo;
-        {
-            tokenA.mint(address(bob), sellSize);
-            vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), sellSize);
-            (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-                address(tokenB),
-                address(tokenA),
-                sellPriceOne,
-                sellSize / 2,
-                0
-            );
-            (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-                address(tokenB),
-                address(tokenA),
-                sellPriceTwo,
-                sellSize / 2,
-                1
-            );
-            vm.stopPrank();
-        }
-        {
-            uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenB), address(tokenA), sellSize);
-            tokenB.mint(address(alice), amountIn);
-            vm.startPrank(alice);
-            tokenB.approve(address(publicLibrary), amountIn - 1);
-            vm.expectRevert(abi.encodeWithSignature('AmountInTooHigh(uint256)', 750000000000000000));
-            publicLibrary.swapERC20forExactERC20(
-                sellSize,
-                amountIn - 1,
-                address(tokenB),
-                address(tokenA),
-                alice,
-                block.timestamp
-            );
-        }
-    }
-
-    function _addressToUint(address _a) internal pure returns (uint256 v) {
-        assembly {
-            v := _a
-        }
-    }
-
-    function testGetExactOutMultiPathABC() public {
-        uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellPriceBC = (10**36) * 2100;
-        uint256 sellSizeAB = 1 ether;
-        uint256 sellSizeBC = 2100 ether;
-        uint256 orderIdAB;
-        uint256 orderIdBC;
-        uint256 buySize = 2000 ether;
-        {
-            tokenB.mint(address(bob), sellSizeAB);
-            vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSizeAB);
-            (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceAB,
-                sellSizeAB,
-                0
-            );
-            vm.stopPrank();
-        }
-        {
-            tokenC.mint(address(bob), sellSizeBC);
-            vm.startPrank(bob);
-            tokenC.approve(address(publicLibrary), sellSizeBC);
-            (, orderIdBC) = publicLibrary.openERC20ToERC20Order(
-                address(tokenB),
-                address(tokenC),
-                sellPriceBC,
-                sellSizeBC,
-                0
-            );
-            vm.stopPrank();
-        }
-        uint256[] memory path = new uint256[](6);
-        path[0] = 0;
-        path[1] = _addressToUint(address(tokenA));
-        path[2] = 0;
-        path[3] = _addressToUint(address(tokenB));
-        path[4] = 0;
-        path[5] = _addressToUint(address(tokenC));
-        {
-            uint256[] memory amountsOut = publicLibrary.getAmountsOut(path, buySize);
-            assert(amountsOut.length == 3);
-            assert(amountsOut[0] == buySize);
-            assert(amountsOut[1] == sellSizeAB);
-            assert(amountsOut[2] == sellSizeBC);
-        }
-    }
-
-    function testSwapExactInMultiPathABC() public {
-        uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellPriceBC = (10**36) * 2100;
-        uint256 sellSizeAB = 1 ether;
-        uint256 sellSizeBC = 2100 ether;
-        uint256 orderIdAB;
-        uint256 orderIdBC;
-        uint256 buySize = 2000 ether;
-        {
-            tokenB.mint(address(bob), sellSizeAB);
-            vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSizeAB);
-            (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceAB,
-                sellSizeAB,
-                0
-            );
-            vm.stopPrank();
-        }
-        {
-            tokenC.mint(address(bob), sellSizeBC);
-            vm.startPrank(bob);
-            tokenC.approve(address(publicLibrary), sellSizeBC);
-            (, orderIdBC) = publicLibrary.openERC20ToERC20Order(
-                address(tokenB),
-                address(tokenC),
-                sellPriceBC,
-                sellSizeBC,
-                0
-            );
-            vm.stopPrank();
-        }
-        uint256[] memory path = new uint256[](6);
-        path[0] = 0;
-        path[1] = _addressToUint(address(tokenA));
-        path[2] = 0;
-        path[3] = _addressToUint(address(tokenB));
-        path[4] = 0;
-        path[5] = _addressToUint(address(tokenC));
-        {
-            uint256[] memory amountsOut = publicLibrary.getAmountsOut(path, buySize);
-            assert(amountsOut.length == 3);
-            assert(amountsOut[0] == buySize);
-            tokenA.mint(address(bob), amountsOut[0]);
-            vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), amountsOut[0]);
-            assert(tokenC.balanceOf(bob) == 0);
-            publicLibrary.swapExactInPath(amountsOut[0], amountsOut[2], path, bob, block.timestamp);
-            assert(tokenC.balanceOf(bob) == sellSizeBC);
-            vm.stopPrank();
-        }
-    }
-
-    function testSwapExactInMultiPathFailABC() public {
-        uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellPriceBC = (10**36) * 2100;
-        uint256 sellSizeAB = 1 ether;
-        uint256 sellSizeBC = 2100 ether;
-        uint256 orderIdAB;
-        uint256 orderIdBC;
-        uint256 buySize = 2000 ether;
-        {
-            tokenB.mint(address(bob), sellSizeAB);
-            vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSizeAB);
-            (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceAB,
-                sellSizeAB,
-                0
-            );
-            vm.stopPrank();
-        }
-        {
-            tokenC.mint(address(bob), sellSizeBC);
-            vm.startPrank(bob);
-            tokenC.approve(address(publicLibrary), sellSizeBC);
-            (, orderIdBC) = publicLibrary.openERC20ToERC20Order(
-                address(tokenB),
-                address(tokenC),
-                sellPriceBC,
-                sellSizeBC,
-                0
-            );
-            vm.stopPrank();
-        }
-        uint256[] memory path = new uint256[](6);
-        path[0] = 0;
-        path[1] = _addressToUint(address(tokenA));
-        path[2] = 0;
-        path[3] = _addressToUint(address(tokenB));
-        path[4] = 0;
-        path[5] = _addressToUint(address(tokenC));
-        {
-            uint256[] memory amountsOut = publicLibrary.getAmountsOut(path, buySize);
-            assert(amountsOut.length == 3);
-            assert(amountsOut[0] == buySize);
-            tokenA.mint(address(bob), amountsOut[0]);
-            vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), amountsOut[0]);
-            vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 2100000000000000000000));
-            publicLibrary.swapExactInPath(amountsOut[0], amountsOut[2] + 1, path, bob, block.timestamp);
-            vm.stopPrank();
-        }
-    }
-
-    function testGetExactInMultiPathABC() public {
-        uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellPriceBC = (10**36) * 2100;
-        uint256 sellSizeAB = 1 ether;
-        uint256 sellSizeBC = 2100 ether;
-        uint256 orderIdAB;
-        uint256 orderIdBC;
-        uint256 buySize = 2000 ether;
-        {
-            tokenB.mint(address(bob), sellSizeAB);
-            vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSizeAB);
-            (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceAB,
-                sellSizeAB,
-                0
-            );
-            vm.stopPrank();
-        }
-        {
-            tokenC.mint(address(bob), sellSizeBC);
-            vm.startPrank(bob);
-            tokenC.approve(address(publicLibrary), sellSizeBC);
-            (, orderIdBC) = publicLibrary.openERC20ToERC20Order(
-                address(tokenB),
-                address(tokenC),
-                sellPriceBC,
-                sellSizeBC,
-                0
-            );
-            vm.stopPrank();
-        }
-        uint256[] memory path = new uint256[](6);
-        path[0] = 0;
-        path[1] = _addressToUint(address(tokenA));
-        path[2] = 0;
-        path[3] = _addressToUint(address(tokenB));
-        path[4] = 0;
-        path[5] = _addressToUint(address(tokenC));
-        {
-            uint256[] memory amountsOut = publicLibrary.getAmountsIn(path, sellSizeBC);
-            assert(amountsOut.length == 3);
-            assert(amountsOut[0] == buySize);
-            assert(amountsOut[1] == sellSizeAB);
-            assert(amountsOut[2] == sellSizeBC);
-        }
-    }
-
-    function testSwapExactOutMultiPathABC() public {
-        uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellPriceBC = (10**36) * 2100;
-        uint256 sellSizeAB = 1 ether;
-        uint256 sellSizeBC = 2100 ether;
-        uint256 orderIdAB;
-        uint256 orderIdBC;
-        uint256 buySize = 2000 ether;
-        {
-            tokenB.mint(address(bob), sellSizeAB);
-            vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSizeAB);
-            (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceAB,
-                sellSizeAB,
-                0
-            );
-            vm.stopPrank();
-        }
-        {
-            tokenC.mint(address(bob), sellSizeBC);
-            vm.startPrank(bob);
-            tokenC.approve(address(publicLibrary), sellSizeBC);
-            (, orderIdBC) = publicLibrary.openERC20ToERC20Order(
-                address(tokenB),
-                address(tokenC),
-                sellPriceBC,
-                sellSizeBC,
-                0
-            );
-            vm.stopPrank();
-        }
-        uint256[] memory path = new uint256[](6);
-        path[0] = 0;
-        path[1] = _addressToUint(address(tokenA));
-        path[2] = 0;
-        path[3] = _addressToUint(address(tokenB));
-        path[4] = 0;
-        path[5] = _addressToUint(address(tokenC));
-        {
-            uint256[] memory amountsOut = publicLibrary.getAmountsIn(path, sellSizeBC);
-            assert(amountsOut.length == 3);
-            assert(amountsOut[0] == buySize);
-            tokenA.mint(address(bob), amountsOut[0]);
-            vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), amountsOut[0]);
-            assert(tokenC.balanceOf(bob) == 0);
-            publicLibrary.swapExactOutPath(amountsOut[2], amountsOut[0], path, bob, block.timestamp);
-            assert(tokenC.balanceOf(bob) == sellSizeBC);
-            vm.stopPrank();
-        }
-    }
-
-    function testSwapExactOutMultiPathFailABC() public {
-        uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellPriceBC = (10**36) * 2100;
-        uint256 sellSizeAB = 1 ether;
-        uint256 sellSizeBC = 2100 ether;
-        uint256 orderIdAB;
-        uint256 orderIdBC;
-        uint256 buySize = 2000 ether;
-        {
-            tokenB.mint(address(bob), sellSizeAB);
-            vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSizeAB);
-            (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceAB,
-                sellSizeAB,
-                0
-            );
-            vm.stopPrank();
-        }
-        {
-            tokenC.mint(address(bob), sellSizeBC);
-            vm.startPrank(bob);
-            tokenC.approve(address(publicLibrary), sellSizeBC);
-            (, orderIdBC) = publicLibrary.openERC20ToERC20Order(
-                address(tokenB),
-                address(tokenC),
-                sellPriceBC,
-                sellSizeBC,
-                0
-            );
-            vm.stopPrank();
-        }
-        uint256[] memory path = new uint256[](6);
-        path[0] = 0;
-        path[1] = _addressToUint(address(tokenA));
-        path[2] = 0;
-        path[3] = _addressToUint(address(tokenB));
-        path[4] = 0;
-        path[5] = _addressToUint(address(tokenC));
-        {
-            uint256[] memory amountsOut = publicLibrary.getAmountsIn(path, sellSizeBC);
-            assert(amountsOut.length == 3);
-            assert(amountsOut[0] == buySize);
-            tokenA.mint(address(bob), amountsOut[0]);
-            vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), amountsOut[0]);
-            vm.expectRevert(abi.encodeWithSignature('AmountInTooHigh(uint256)', 2000000000000000000000));
-            publicLibrary.swapExactOutPath(amountsOut[2], amountsOut[0] - 1, path, bob, block.timestamp);
-            vm.stopPrank();
-        }
-    }
-
-    function testGetExactOutMultiPathAB() public {
-        uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellSizeAB = 1 ether;
-        uint256 orderIdAB;
-        uint256 buySize = 2000 ether;
-        {
-            tokenB.mint(address(bob), sellSizeAB);
-            vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSizeAB);
-            (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceAB,
-                sellSizeAB,
-                0
-            );
-            vm.stopPrank();
-        }
-        uint256[] memory path = new uint256[](4);
-        path[0] = 0;
-        path[1] = _addressToUint(address(tokenA));
-        path[2] = 0;
-        path[3] = _addressToUint(address(tokenB));
-        {
-            uint256[] memory amountsOut = publicLibrary.getAmountsOut(path, buySize);
-            assert(amountsOut.length == 2);
-            assert(amountsOut[0] == buySize);
-            assert(amountsOut[1] == sellSizeAB);
-        }
-    }
-
-    function testSwapExactInMultiPathAB() public {
-        uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellSizeAB = 1 ether;
-        uint256 orderIdAB;
-        uint256 buySize = 2000 ether;
-        {
-            tokenB.mint(address(bob), sellSizeAB);
-            vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSizeAB);
-            (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceAB,
-                sellSizeAB,
-                0
-            );
-            vm.stopPrank();
-        }
-        uint256[] memory path = new uint256[](4);
-        path[0] = 0;
-        path[1] = _addressToUint(address(tokenA));
-        path[2] = 0;
-        path[3] = _addressToUint(address(tokenB));
-        {
-            uint256[] memory amountsOut = publicLibrary.getAmountsOut(path, buySize);
-            assert(amountsOut.length == 2);
-            assert(amountsOut[0] == buySize);
-            tokenA.mint(address(bob), amountsOut[0]);
-            vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), amountsOut[0]);
-            assert(tokenB.balanceOf(bob) == 0);
-            publicLibrary.swapExactInPath(amountsOut[0], amountsOut[1], path, bob, block.timestamp);
-            assert(tokenB.balanceOf(bob) == sellSizeAB);
-            vm.stopPrank();
-        }
-    }
-
-    function testSwapExactInMultiPathFailAB() public {
-        uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellSizeAB = 1 ether;
-        uint256 orderIdAB;
-        uint256 buySize = 2000 ether;
-        {
-            tokenB.mint(address(bob), sellSizeAB);
-            vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSizeAB);
-            (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceAB,
-                sellSizeAB,
-                0
-            );
-            vm.stopPrank();
-        }
-        uint256[] memory path = new uint256[](4);
-        path[0] = 0;
-        path[1] = _addressToUint(address(tokenA));
-        path[2] = 0;
-        path[3] = _addressToUint(address(tokenB));
-        {
-            uint256[] memory amountsOut = publicLibrary.getAmountsOut(path, buySize);
-            assert(amountsOut.length == 2);
-            assert(amountsOut[0] == buySize);
-            tokenA.mint(address(bob), amountsOut[0]);
-            vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), amountsOut[0]);
+            _approve(tokenB_, address(publicLibrary), amount);
+            assertEq(_balanceOf(tokenA_, alice), 0);
             vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 1000000000000000000));
-            publicLibrary.swapExactInPath(amountsOut[0], amountsOut[1] + 1, path, bob, block.timestamp);
+            publicLibrary.swapExactTokenForToken(amountIn, 1 ether + 1, tokenB_, tokenA_, alice, block.timestamp);
             vm.stopPrank();
         }
     }
 
-    function testGetExactInMultiPathAB() public {
-        uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellSizeAB = 1 ether;
-        uint256 orderIdAB;
-        uint256 buySize = 2000 ether;
+    function testSwapTFETUniqueOrderAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
         {
-            tokenB.mint(address(bob), sellSizeAB);
             vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSizeAB);
-            (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceAB,
-                sellSizeAB,
-                0
-            );
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountOut = publicLibrary.getAmountOut(1 ether, tokenA_, tokenB_);
+        _mint(tokenA_, alice, 1 ether);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), 1 ether);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapTokenForExactToken(amountOut, 1 ether, tokenA_, tokenB_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 2000 ether);
             vm.stopPrank();
         }
-        uint256[] memory path = new uint256[](4);
-        path[0] = 0;
-        path[1] = _addressToUint(address(tokenA));
-        path[2] = 0;
-        path[3] = _addressToUint(address(tokenB));
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 1 ether);
+    }
+
+    function testSwapTFETHalfUniqueOrderAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
         {
-            uint256[] memory amountsOut = publicLibrary.getAmountsIn(path, sellSizeAB);
-            assert(amountsOut.length == 2);
-            assert(amountsOut[0] == buySize);
-            assert(amountsOut[1] == sellSizeAB);
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountOut = publicLibrary.getAmountOut(0.5 ether, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountOut);
+        assertEq(_balanceOf(order, bob), 1 ether);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), 0.5 ether);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapTokenForExactToken(amountOut, 0.5 ether, tokenA_, tokenB_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 1000 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0.5 ether);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 0.5 ether);
+    }
+
+    function testSwapTFETTwoOrderAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256 amountIn = 2 ether;
+        uint256 amountOut = publicLibrary.getAmountOut(amountIn, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapTokenForExactToken(amountOut, amountIn, tokenA_, tokenB_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 3800 ether);
+            vm.stopPrank();
         }
     }
 
-    function testSwapExactOutMultiPathAB() public {
-        uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellSizeAB = 1 ether;
-        uint256 orderIdAB;
-        uint256 buySize = 2000 ether;
+    function testSwapTFETTwoOrderOneFilledAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
         {
-            tokenB.mint(address(bob), sellSizeAB);
             vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSizeAB);
-            (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceAB,
-                sellSizeAB,
-                0
-            );
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
             vm.stopPrank();
         }
-        uint256[] memory path = new uint256[](4);
-        path[0] = 0;
-        path[1] = _addressToUint(address(tokenA));
-        path[2] = 0;
-        path[3] = _addressToUint(address(tokenB));
+        uint256 amountIn = 2 ether;
+        uint256 amountOut = publicLibrary.getAmountOut(amountIn / 2, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        assertEq(_balanceOf(order, bob), amountIn / 2);
         {
-            uint256[] memory amountsOut = publicLibrary.getAmountsIn(path, sellSizeAB);
-            assert(amountsOut.length == 2);
-            assert(amountsOut[0] == buySize);
-            tokenA.mint(address(bob), amountsOut[0]);
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapTokenForExactToken(amountOut, amountIn / 2, tokenA_, tokenB_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 2000 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn / 2);
+    }
+
+    function testSwapTFETDeadlineCrossedAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
             vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), amountsOut[0]);
-            assert(tokenB.balanceOf(bob) == 0);
-            publicLibrary.swapExactOutPath(amountsOut[1], amountsOut[0], path, bob, block.timestamp);
-            assert(tokenB.balanceOf(bob) == sellSizeAB);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = 1 ether;
+        uint256 amountOut = publicLibrary.getAmountOut(amountIn, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            vm.expectRevert(abi.encodeWithSignature('DeadlineCrossed()'));
+            vm.warp(100);
+            publicLibrary.swapTokenForExactToken(amountOut, amountIn, tokenA_, tokenB_, alice, block.timestamp - 1);
             vm.stopPrank();
         }
     }
 
-    function testSwapExactOutMultiPathFailAB() public {
-        uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellSizeAB = 1 ether;
-        uint256 orderIdAB;
-        uint256 buySize = 2000 ether;
+    function testSwapTFETAmountOutTooLowAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
         {
-            tokenB.mint(address(bob), sellSizeAB);
             vm.startPrank(bob);
-            tokenB.approve(address(publicLibrary), sellSizeAB);
-            (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-                address(tokenA),
-                address(tokenB),
-                sellPriceAB,
-                sellSizeAB,
-                0
-            );
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = 1 ether;
+        uint256 amountOut = publicLibrary.getAmountOut(amountIn, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            vm.expectRevert(abi.encodeWithSignature('AmountInTooHigh(uint256)', 1000000000000000000));
+            publicLibrary.swapTokenForExactToken(amountOut, amountIn - 1, tokenA_, tokenB_, alice, block.timestamp);
             vm.stopPrank();
         }
-        uint256[] memory path = new uint256[](4);
-        path[0] = 0;
-        path[1] = _addressToUint(address(tokenA));
-        path[2] = 0;
-        path[3] = _addressToUint(address(tokenB));
+    }
+
+    function testSwapTFETUniqueOrderBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
         {
-            uint256[] memory amountsOut = publicLibrary.getAmountsIn(path, sellSizeAB);
-            assert(amountsOut.length == 2);
-            assert(amountsOut[0] == buySize);
-            tokenA.mint(address(bob), amountsOut[0]);
             vm.startPrank(bob);
-            tokenA.approve(address(publicLibrary), amountsOut[0]);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = 2000 ether;
+        uint256 amountOut = publicLibrary.getAmountOut(amountIn, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapTokenForExactToken(amountOut, amountIn, tokenB_, tokenA_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), amountOut);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapTFETHalfUniqueOrderBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = 1000 ether;
+        uint256 amountOut = publicLibrary.getAmountOut(amountIn, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
+        assertEq(_balanceOf(order, bob), 2000 ether);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapTokenForExactToken(amountOut, amountIn, tokenB_, tokenA_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), 0.5 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 1000 ether);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 1000 ether);
+    }
+
+    function testSwapTFETTwoOrderBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+        price = 10**(decimalsA + decimalsB) / 4000;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256 amountIn = 6000 ether;
+        uint256 amountOut = publicLibrary.getAmountOut(6000 ether, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapTokenForExactToken(amountOut, amountIn, tokenB_, tokenA_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), 2 ether);
+            vm.stopPrank();
+        }
+    }
+
+    function testSwapTFETTwoOrderOneFilledBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) / 4000;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256 amountIn = 2000 ether;
+        uint256 amountOut = publicLibrary.getAmountOut(amountIn, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
+        assertEq(_balanceOf(order, bob), amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapTokenForExactToken(amountOut, amountIn, tokenB_, tokenA_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), 1 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapTFETDeadlineCrossedBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = 2000 ether;
+        uint256 amountOut = publicLibrary.getAmountOut(amountIn, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            vm.warp(100);
+            vm.expectRevert(abi.encodeWithSignature('DeadlineCrossed()'));
+            publicLibrary.swapTokenForExactToken(amountOut, amountIn, tokenB_, tokenA_, alice, block.timestamp - 1);
+            vm.stopPrank();
+        }
+    }
+
+    function testSwapTFETAmountOutTooLowBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = 2000 ether;
+        uint256 amountOut = publicLibrary.getAmountOut(amountIn, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amount);
+            assertEq(_balanceOf(tokenA_, alice), 0);
             vm.expectRevert(abi.encodeWithSignature('AmountInTooHigh(uint256)', 2000000000000000000000));
-            publicLibrary.swapExactOutPath(amountsOut[1], amountsOut[0] - 1, path, bob, block.timestamp);
+            publicLibrary.swapTokenForExactToken(amountOut, amountIn - 1, tokenB_, tokenA_, alice, block.timestamp);
             vm.stopPrank();
         }
     }
-}
 
-contract PublicLibraryERC20ToERC1155Test is DSTestPlus {
-    Vm public constant vm = Vm(address(bytes20(uint160(uint256(keccak256('hevm cheat code'))))));
-
-    Printer internal printer;
-    PublicLibrary internal publicLibrary;
-    ERC20Mock internal tokenA;
-    ERC1155Mock internal tokenB;
-    uint256 idB = 42;
-    ERC20Mock internal tokenC;
-    Book internal book;
-    bool internal tokenAisZero;
-
-    address internal bob = address(1);
-    address internal alice = address(2);
-
-    function setUp() public {
-        printer = new Printer();
-        tokenA = new ERC20Mock('US Dollar', 'USDC', 18);
-        tokenB = new ERC1155Mock();
-        tokenC = new ERC20Mock('Dai Stablecoin', 'DAI', 18);
-        book = Book(printer.createHybridBook(address(tokenB), idB, address(tokenA)));
-        printer.createHybridBook(address(tokenB), idB, address(tokenC));
-        publicLibrary = new PublicLibrary(address(printer));
-        tokenAisZero = book.token0() == address(tokenA);
+    function testSwapTFETInvalidMultipleAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256 amountOut = publicLibrary.getAmountOut(1 ether, tokenA_, tokenB_);
+        _mint(tokenA_, alice, 2000 ether);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amount);
+            vm.expectRevert(
+                abi.encodeWithSignature(
+                    'AmountOutNotMultipleOfPrice(uint256,uint256)',
+                    1999999999999999999999,
+                    2000000000000000000000000000000000
+                )
+            );
+            publicLibrary.swapTokenForExactToken(amountOut - 1, 2000 ether, tokenA_, tokenB_, alice, block.timestamp);
+            vm.stopPrank();
+        }
     }
 
-    function testGetAmountOutInsufficientLiqAB() public {
-        vm.expectRevert(
-            abi.encodeWithSignature('InsufficientLiquidity(address,uint8,uint256)', address(book), 0, 1 ether)
-        );
-        publicLibrary.getERC20ToERC1155AmountOut(address(tokenA), address(tokenB), idB, 1 ether);
+    // swap max AB
+    function testSwapMaxUniqueOrderAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(2000 ether, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            (uint256 finalAmountIn, uint256 finalAmountOut) = publicLibrary.swapMaxAbovePrice(
+                amountIn,
+                price,
+                tokenA_,
+                tokenB_,
+                alice,
+                block.timestamp
+            );
+            assertEq(finalAmountIn, amountIn);
+            assertEq(finalAmountOut, 2000 ether);
+            assertEq(_balanceOf(tokenB_, alice), 2000 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
     }
 
-    function testGetAmountOutInsufficientLiqBA() public {
-        vm.expectRevert(
-            abi.encodeWithSignature('InsufficientLiquidity(address,uint8,uint256)', address(book), 1, 1 ether)
-        );
-        publicLibrary.getERC1155ToERC20AmountOut(address(tokenB), idB, address(tokenA), 1 ether);
+    function testSwapMaxUniqueOrderNotMultipleAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(2000 ether, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn + 1);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn + 1);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            (uint256 finalAmountIn, uint256 finalAmountOut) = publicLibrary.swapMaxAbovePrice(
+                amountIn + 1,
+                price,
+                tokenA_,
+                tokenB_,
+                alice,
+                block.timestamp
+            );
+            assertEq(finalAmountIn, amountIn);
+            assertEq(finalAmountOut, 2000 ether);
+            assertEq(_balanceOf(tokenB_, alice), 2000 ether);
+            assertEq(_balanceOf(tokenA_, alice), 1);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
     }
 
-    function testGetAmountOutSingleOrderAB() public {
-        uint256 sellPrice = (10**18) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-        uint256 sellSize = 1;
-        uint256 buySize = 2000 ether;
-        tokenB.mint(address(bob), idB, sellSize);
-        vm.startPrank(bob);
-        tokenB.setApprovalForAll(address(publicLibrary), true);
-        publicLibrary.openERC20ToERC1155Order(address(tokenA), address(tokenB), idB, sellPrice, sellSize, 0);
-        vm.stopPrank();
-        uint256 amountOut = publicLibrary.getERC20ToERC1155AmountOut(address(tokenA), address(tokenB), idB, buySize);
-        assert(amountOut == sellSize);
+    function testSwapMaxUniqueOrderHalfFillAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(1000 ether, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            (uint256 finalAmountIn, uint256 finalAmountOut) = publicLibrary.swapMaxAbovePrice(
+                amountIn,
+                price,
+                tokenA_,
+                tokenB_,
+                alice,
+                block.timestamp
+            );
+            assertEq(finalAmountIn, amountIn);
+            assertEq(finalAmountOut, 1000 ether);
+            assertEq(_balanceOf(tokenB_, alice), 1000 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), amountIn);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
     }
 
-    function testGetAmountOutSingleOrderBA() public {
-        uint256 sellPrice = (10**18) * 2000; // Read as => buy 1 ETH for 2000 USDC
-        uint256 sellSize = 2000 ether;
-        uint256 buySize = 1;
-        tokenA.mint(address(bob), sellSize);
-        vm.startPrank(bob);
-        tokenA.approve(address(publicLibrary), sellSize);
-        publicLibrary.openERC1155ToERC20Order(address(tokenB), idB, address(tokenA), sellPrice, sellSize, 0);
-        vm.stopPrank();
-        uint256 amountOut = publicLibrary.getERC1155ToERC20AmountOut(address(tokenB), idB, address(tokenA), buySize);
-        assert(amountOut == sellSize);
+    function testSwapMaxTwoOrdersAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(3800 ether, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            (uint256 finalAmountIn, uint256 finalAmountOut) = publicLibrary.swapMaxAbovePrice(
+                amountIn,
+                price,
+                tokenA_,
+                tokenB_,
+                alice,
+                block.timestamp
+            );
+            assertEq(finalAmountIn, amountIn);
+            assertEq(finalAmountOut, 3800 ether);
+            assertEq(_balanceOf(tokenB_, alice), 3800 ether);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 1 ether);
     }
 
-    function testGetAmountOutMultiOrderAB() public {
-        uint256 sellPriceOne = (10**18) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-        uint256 sellPriceTwo = (10**18) / uint256(4000); // Read as => buy 1 USDC for 1/4000 ETH
-        uint256 sellSize = 2;
-        uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-        tokenB.mint(address(bob), idB, sellSize);
-        vm.startPrank(bob);
-        tokenB.setApprovalForAll(address(publicLibrary), true);
-        publicLibrary.openERC20ToERC1155Order(address(tokenA), address(tokenB), idB, sellPriceOne, sellSize / 2, 0);
-        publicLibrary.openERC20ToERC1155Order(address(tokenA), address(tokenB), idB, sellPriceTwo, sellSize / 2, 0);
-        vm.stopPrank();
-        uint256 amountOut = publicLibrary.getERC20ToERC1155AmountOut(address(tokenA), address(tokenB), idB, buySize);
-        assert(amountOut == sellSize);
+    function testSwapMaxTwoOrdersOutpricingOneAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(2000 ether, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        {
+            price = 10**(decimalsA + decimalsB) * 2000;
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            (uint256 finalAmountIn, uint256 finalAmountOut) = publicLibrary.swapMaxAbovePrice(
+                amountIn,
+                price,
+                tokenA_,
+                tokenB_,
+                alice,
+                block.timestamp
+            );
+            assertEq(finalAmountIn, amountIn);
+            assertEq(finalAmountOut, 2000 ether);
+            assertEq(_balanceOf(tokenB_, alice), 2000 ether);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 1 ether);
     }
 
-    function testGetAmountOutMultiOrderBA() public {
-        uint256 sellPriceOne = (10**18) * 2000; // Read as => buy 1 ETH for 2000 ETH
-        uint256 sellPriceTwo = (10**18) * uint256(4000); // Read as => buy 1 ETH for 4000 USDC
-        uint256 sellSize = 6000 ether;
-        uint256 buySize = 2;
-        tokenA.mint(address(bob), sellSize);
-        vm.startPrank(bob);
-        tokenA.approve(address(publicLibrary), sellSize);
-        publicLibrary.openERC1155ToERC20Order(address(tokenB), idB, address(tokenA), sellPriceOne, 2000 ether, 0);
-        publicLibrary.openERC1155ToERC20Order(address(tokenB), idB, address(tokenA), sellPriceTwo, 4000 ether, 1);
-        vm.stopPrank();
-        uint256 amountOut = publicLibrary.getERC1155ToERC20AmountOut(address(tokenB), idB, address(tokenA), buySize);
-        assert(amountOut == sellSize);
+    function testSwapMaxTwoOrdersNotMultipleAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(3800 ether, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn + 1);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn + 1);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            (uint256 finalAmountIn, uint256 finalAmountOut) = publicLibrary.swapMaxAbovePrice(
+                amountIn + 1,
+                price,
+                tokenA_,
+                tokenB_,
+                alice,
+                block.timestamp
+            );
+            assertEq(finalAmountIn, amountIn);
+            assertEq(finalAmountOut, 3800 ether);
+            assertEq(_balanceOf(tokenB_, alice), 3800 ether);
+            assertEq(_balanceOf(tokenA_, alice), 1);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 1 ether);
     }
 
-    function testGetAmountInInsufficientLiqAB() public {
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                'InsufficientLiquidity(address,uint8,uint256)',
-                address(book),
-                tokenAisZero ? 1 : 0,
-                1 ether
-            )
-        );
-        publicLibrary.getERC20ToERC1155AmountIn(address(tokenA), address(tokenB), idB, 1 ether);
+    function testSwapMaxTwoOrdersOutpricingOneNotMultipleAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(2000 ether, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn + 1);
+        {
+            price = 10**(decimalsA + decimalsB) * 2000;
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn + 1);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            (uint256 finalAmountIn, uint256 finalAmountOut) = publicLibrary.swapMaxAbovePrice(
+                amountIn + 1,
+                price,
+                tokenA_,
+                tokenB_,
+                alice,
+                block.timestamp
+            );
+            assertEq(finalAmountIn, amountIn);
+            assertEq(finalAmountOut, 2000 ether);
+            assertEq(_balanceOf(tokenB_, alice), 2000 ether);
+            assertEq(_balanceOf(tokenA_, alice), 1);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 1 ether);
     }
 
-    // function testGetAmountInInsufficientLiqBA() public {
-    //     vm.expectRevert(
-    //         abi.encodeWithSignature(
-    //             'InsufficientLiquidity(address,uint8,uint256)',
-    //             address(book),
-    //             tokenAisZero ? 0 : 1,
-    //             1 ether
-    //         )
-    //     );
-    //     publicLibrary.getERC20ToERC20AmountIn(address(tokenB), address(tokenA), 1 ether);
-    // }
+    // swap max BA
+    function testSwapMaxUniqueOrderNotMultipleHalfFillBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(0.5 ether, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn + 1);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn + 1);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            (uint256 finalAmountIn, uint256 finalAmountOut) = publicLibrary.swapMaxAbovePrice(
+                amountIn + 1,
+                price,
+                tokenB_,
+                tokenA_,
+                alice,
+                block.timestamp
+            );
+            assertEq(finalAmountIn, amountIn);
+            assertEq(finalAmountOut, 0.5 ether);
+            assertEq(_balanceOf(tokenA_, alice), 0.5 ether);
+            assertEq(_balanceOf(tokenB_, alice), 1);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), amountIn);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
 
-    // function testGetAmountInSingleOrderAB() public {
-    //     uint256 sellPrice = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-    //     uint256 sellSize = 1 ether;
-    //     uint256 buySize = 2000 ether;
-    //     tokenB.mint(address(bob), sellSize);
-    //     vm.startPrank(bob);
-    //     tokenB.approve(address(publicLibrary), sellSize);
-    //     publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPrice, sellSize, 0);
-    //     vm.stopPrank();
-    //     uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenA), address(tokenB), sellSize);
-    //     assert(amountIn == buySize);
-    // }
-
-    // function testGetAmountInSingleOrderBA() public {
-    //     uint256 sellPrice = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellSize = 2000 ether;
-    //     uint256 buySize = 1 ether;
-    //     tokenA.mint(address(bob), sellSize);
-    //     vm.startPrank(bob);
-    //     tokenA.approve(address(publicLibrary), sellSize);
-    //     publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPrice, sellSize, 0);
-    //     vm.stopPrank();
-    //     uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenB), address(tokenA), sellSize);
-    //     assert(amountIn == buySize);
-    // }
-
-    // function testGetAmountInMultiOrderAB() public {
-    //     uint256 sellPriceOne = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-    //     uint256 sellPriceTwo = (10**36) / uint256(4000); // Read as => buy 1 USDC for 1/4000 ETH
-    //     uint256 sellSize = 1 ether;
-    //     uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-    //     tokenB.mint(address(bob), sellSize);
-    //     vm.startPrank(bob);
-    //     tokenB.approve(address(publicLibrary), sellSize);
-    //     publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPriceOne, sellSize / 2, 0);
-    //     publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPriceTwo, sellSize / 2, 0);
-    //     vm.stopPrank();
-    //     uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenA), address(tokenB), sellSize);
-    //     assert(amountIn == buySize);
-    // }
-
-    // function testGetAmountInMultiOrderBA() public {
-    //     uint256 sellPriceOne = (10**36) * 2000; // Read as => buy 1 ETH for 2000 ETH
-    //     uint256 sellPriceTwo = (10**36) * uint256(4000); // Read as => buy 1 ETH for 4000 USDC
-    //     uint256 sellSize = 3000 ether;
-    //     uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-    //     tokenA.mint(address(bob), sellSize);
-    //     vm.startPrank(bob);
-    //     tokenA.approve(address(publicLibrary), sellSize);
-    //     publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPriceOne, sellSize / 2, 0);
-    //     publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPriceTwo, sellSize / 2, 1);
-    //     vm.stopPrank();
-    //     uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenB), address(tokenA), sellSize);
-    //     assert(amountIn == buySize);
-    // }
-
-    // function testSwapE20to20AB() public {
-    //     uint256 sellPrice = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-    //     uint256 sellSize = 1 ether;
-    //     uint256 buySize = 2000 ether;
-    //     uint256 orderId;
-    //     {
-    //         tokenB.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSize);
-    //         (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPrice, sellSize, 0);
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenA), address(tokenB), buySize);
-    //         tokenA.mint(address(alice), buySize);
-    //         vm.startPrank(alice);
-    //         tokenA.approve(address(publicLibrary), buySize);
-    //         publicLibrary.swapExactERC20forERC20(
-    //             buySize,
-    //             amountOut,
-    //             address(tokenA),
-    //             address(tokenB),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //         vm.stopPrank();
-    //         assert(tokenB.balanceOf(alice) == amountOut);
-    //     }
-    //     {
-    //         vm.startPrank(bob);
-    //         address[] memory books = new address[](1);
-    //         books[0] = address(book);
-    //         uint256[] memory idCounts = new uint256[](1);
-    //         idCounts[0] = 1;
-    //         uint256[] memory ids = new uint256[](1);
-    //         ids[0] = orderId;
-    //         publicLibrary.settle(books, idCounts, ids, bob);
-    //         vm.stopPrank();
-    //         assert(tokenA.balanceOf(bob) == buySize);
-    //     }
-    // }
-
-    // function testSwapE20to20FailAB() public {
-    //     uint256 sellPrice = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-    //     uint256 sellSize = 1 ether;
-    //     uint256 buySize = 2000 ether;
-    //     uint256 orderId;
-    //     {
-    //         tokenB.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSize);
-    //         (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPrice, sellSize, 0);
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenA), address(tokenB), buySize);
-    //         tokenA.mint(address(alice), buySize);
-    //         vm.startPrank(alice);
-    //         tokenA.approve(address(publicLibrary), buySize - 1);
-    //         vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 999999999999999999));
-    //         publicLibrary.swapExactERC20forERC20(
-    //             buySize - 1,
-    //             amountOut,
-    //             address(tokenA),
-    //             address(tokenB),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //     }
-    // }
-
-    // function testSwapE20to20MultiOrderAB() public {
-    //     uint256 sellPriceOne = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-    //     uint256 sellPriceTwo = (10**36) / uint256(4000); // Read as => buy 1 USDC for 1/4000 ETH
-    //     uint256 sellSize = 1 ether;
-    //     uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-    //     uint256 orderIdOne;
-    //     uint256 orderIdTwo;
-    //     {
-    //         tokenB.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSize);
-    //         (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceOne,
-    //             sellSize / 2,
-    //             0
-    //         );
-    //         (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceTwo,
-    //             sellSize / 2,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenA), address(tokenB), buySize);
-    //         tokenA.mint(address(alice), buySize);
-    //         vm.startPrank(alice);
-    //         tokenA.approve(address(publicLibrary), buySize);
-    //         publicLibrary.swapExactERC20forERC20(
-    //             buySize,
-    //             amountOut,
-    //             address(tokenA),
-    //             address(tokenB),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //         vm.stopPrank();
-    //         assert(tokenB.balanceOf(alice) == amountOut);
-    //     }
-    //     {
-    //         vm.startPrank(bob);
-    //         address[] memory books = new address[](1);
-    //         books[0] = address(book);
-    //         uint256[] memory idCounts = new uint256[](1);
-    //         idCounts[0] = 2;
-    //         uint256[] memory ids = new uint256[](2);
-    //         ids[0] = orderIdOne;
-    //         ids[1] = orderIdTwo;
-    //         publicLibrary.settle(books, idCounts, ids, bob);
-    //         vm.stopPrank();
-    //         assert(tokenA.balanceOf(bob) == buySize);
-    //     }
-    // }
-
-    // function testSwapE20to20MultiOrderABFail() public {
-    //     uint256 sellPriceOne = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-    //     uint256 sellPriceTwo = (10**36) / uint256(4000); // Read as => buy 1 USDC for 1/4000 ETH
-    //     uint256 sellSize = 1 ether;
-    //     uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-    //     uint256 orderIdOne;
-    //     uint256 orderIdTwo;
-    //     {
-    //         tokenB.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSize);
-    //         (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceOne,
-    //             sellSize / 2,
-    //             0
-    //         );
-    //         (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceTwo,
-    //             sellSize / 2,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenA), address(tokenB), buySize);
-    //         tokenA.mint(address(alice), buySize);
-    //         vm.startPrank(alice);
-    //         tokenA.approve(address(publicLibrary), buySize - 1);
-    //         vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 999999999999999999));
-    //         publicLibrary.swapExactERC20forERC20(
-    //             buySize - 1,
-    //             amountOut,
-    //             address(tokenA),
-    //             address(tokenB),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //     }
-    // }
-
-    // function testSwapE20to20BA() public {
-    //     uint256 sellPrice = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellSize = 2000 ether;
-    //     uint256 buySize = 1 ether;
-    //     uint256 orderId;
-    //     {
-    //         tokenA.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), sellSize);
-    //         (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPrice, sellSize, 0);
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenB), address(tokenA), buySize);
-    //         tokenB.mint(address(alice), buySize);
-    //         vm.startPrank(alice);
-    //         tokenB.approve(address(publicLibrary), buySize);
-    //         publicLibrary.swapExactERC20forERC20(
-    //             buySize,
-    //             amountOut,
-    //             address(tokenB),
-    //             address(tokenA),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //         vm.stopPrank();
-    //         assert(tokenA.balanceOf(alice) == amountOut);
-    //     }
-    //     {
-    //         vm.startPrank(bob);
-    //         address[] memory books = new address[](1);
-    //         books[0] = address(book);
-    //         uint256[] memory idCounts = new uint256[](1);
-    //         idCounts[0] = 1;
-    //         uint256[] memory ids = new uint256[](1);
-    //         ids[0] = orderId;
-    //         publicLibrary.settle(books, idCounts, ids, bob);
-    //         vm.stopPrank();
-    //         assert(tokenB.balanceOf(bob) == buySize);
-    //     }
-    // }
-
-    // function testSwapE20to20FailBA() public {
-    //     uint256 sellPrice = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellSize = 2000 ether;
-    //     uint256 buySize = 1 ether;
-    //     uint256 orderId;
-    //     {
-    //         tokenA.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), sellSize);
-    //         (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPrice, sellSize, 0);
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenB), address(tokenA), buySize);
-    //         tokenB.mint(address(alice), buySize);
-    //         vm.startPrank(alice);
-    //         tokenB.approve(address(publicLibrary), buySize - 1);
-    //         vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 1999999999999999998000));
-    //         publicLibrary.swapExactERC20forERC20(
-    //             buySize - 1,
-    //             amountOut,
-    //             address(tokenB),
-    //             address(tokenA),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //     }
-    // }
-
-    // function testSwapE20to20MultiOrderBA() public {
-    //     uint256 sellPriceOne = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellPriceTwo = (10**36) * uint256(4000); // Read as => buy 1 ETH for 4000 USDC
-    //     uint256 sellSize = 2000 ether;
-    //     uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-    //     uint256 orderIdOne;
-    //     uint256 orderIdTwo;
-    //     {
-    //         tokenA.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), sellSize);
-    //         (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenB),
-    //             address(tokenA),
-    //             sellPriceOne,
-    //             sellSize / 2,
-    //             0
-    //         );
-    //         (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenB),
-    //             address(tokenA),
-    //             sellPriceTwo,
-    //             sellSize / 2,
-    //             1
-    //         );
-    //         vm.stopPrank();
-    //     }
-
-    //     {
-    //         uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenB), address(tokenA), buySize);
-    //         tokenB.mint(address(alice), buySize);
-    //         vm.startPrank(alice);
-    //         tokenB.approve(address(publicLibrary), buySize);
-    //         publicLibrary.swapExactERC20forERC20(
-    //             buySize,
-    //             amountOut,
-    //             address(tokenB),
-    //             address(tokenA),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //         vm.stopPrank();
-    //         assert(tokenA.balanceOf(alice) == amountOut);
-    //     }
-    //     {
-    //         vm.startPrank(bob);
-    //         address[] memory books = new address[](1);
-    //         books[0] = address(book);
-    //         uint256[] memory idCounts = new uint256[](1);
-    //         idCounts[0] = 2;
-    //         uint256[] memory ids = new uint256[](2);
-    //         ids[0] = orderIdOne;
-    //         ids[1] = orderIdTwo;
-    //         publicLibrary.settle(books, idCounts, ids, bob);
-    //         vm.stopPrank();
-    //         assert(tokenB.balanceOf(bob) == buySize);
-    //     }
-    // }
-
-    // function testSwapE20to20MultiOrderBAFail() public {
-    //     uint256 sellPriceOne = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellPriceTwo = (10**36) * uint256(4000); // Read as => buy 1 ETH for 4000 USDC
-    //     uint256 sellSize = 2000 ether;
-    //     uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-    //     uint256 orderIdOne;
-    //     uint256 orderIdTwo;
-    //     {
-    //         tokenA.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), sellSize);
-    //         (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenB),
-    //             address(tokenA),
-    //             sellPriceOne,
-    //             sellSize / 2,
-    //             0
-    //         );
-    //         (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenB),
-    //             address(tokenA),
-    //             sellPriceTwo,
-    //             sellSize / 2,
-    //             1
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         uint256 amountOut = publicLibrary.getERC20ToERC20AmountOut(address(tokenB), address(tokenA), buySize);
-    //         tokenB.mint(address(alice), buySize);
-    //         vm.startPrank(alice);
-    //         tokenB.approve(address(publicLibrary), buySize - 1);
-    //         vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 1999999999999999998000));
-    //         publicLibrary.swapExactERC20forERC20(
-    //             buySize - 1,
-    //             amountOut,
-    //             address(tokenB),
-    //             address(tokenA),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //     }
-    // }
-
-    // function testSwap20toE20AB() public {
-    //     uint256 sellPrice = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-    //     uint256 sellSize = 1 ether;
-    //     uint256 buySize = 2000 ether;
-    //     uint256 orderId;
-    //     {
-    //         tokenB.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSize);
-    //         (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPrice, sellSize, 0);
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenA), address(tokenB), sellSize);
-    //         tokenA.mint(address(alice), amountIn);
-    //         vm.startPrank(alice);
-    //         tokenA.approve(address(publicLibrary), amountIn);
-    //         publicLibrary.swapERC20forExactERC20(
-    //             sellSize,
-    //             amountIn,
-    //             address(tokenA),
-    //             address(tokenB),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //         vm.stopPrank();
-    //         assert(tokenB.balanceOf(alice) == sellSize);
-    //     }
-    //     {
-    //         vm.startPrank(bob);
-    //         address[] memory books = new address[](1);
-    //         books[0] = address(book);
-    //         uint256[] memory idCounts = new uint256[](1);
-    //         idCounts[0] = 1;
-    //         uint256[] memory ids = new uint256[](1);
-    //         ids[0] = orderId;
-    //         publicLibrary.settle(books, idCounts, ids, bob);
-    //         vm.stopPrank();
-    //         assert(tokenA.balanceOf(bob) == buySize);
-    //     }
-    // }
-
-    // function testSwap20toE20FailAB() public {
-    //     uint256 sellPrice = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-    //     uint256 sellSize = 1 ether;
-    //     uint256 orderId;
-    //     {
-    //         tokenB.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSize);
-    //         (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenA), address(tokenB), sellPrice, sellSize, 0);
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenA), address(tokenB), sellSize);
-    //         tokenA.mint(address(alice), amountIn);
-    //         vm.startPrank(alice);
-    //         tokenA.approve(address(publicLibrary), amountIn);
-    //         vm.expectRevert(abi.encodeWithSignature('AmountInTooHigh(uint256)', 2000000000000000000000));
-    //         publicLibrary.swapERC20forExactERC20(
-    //             sellSize,
-    //             amountIn - 1,
-    //             address(tokenA),
-    //             address(tokenB),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //     }
-    // }
-
-    // function testSwap20toE20MultiOrderAB() public {
-    //     uint256 sellPriceOne = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-    //     uint256 sellPriceTwo = (10**36) / uint256(4000); // Read as => buy 1 USDC for 1/4000 ETH
-    //     uint256 sellSize = 1 ether;
-    //     uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-    //     uint256 orderIdOne;
-    //     uint256 orderIdTwo;
-    //     {
-    //         tokenB.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSize);
-    //         (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceOne,
-    //             sellSize / 2,
-    //             0
-    //         );
-    //         (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceTwo,
-    //             sellSize / 2,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenA), address(tokenB), sellSize);
-    //         tokenA.mint(address(alice), amountIn);
-    //         vm.startPrank(alice);
-    //         tokenA.approve(address(publicLibrary), amountIn);
-    //         publicLibrary.swapERC20forExactERC20(
-    //             sellSize,
-    //             amountIn,
-    //             address(tokenA),
-    //             address(tokenB),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //         vm.stopPrank();
-    //         assert(tokenB.balanceOf(alice) == sellSize);
-    //     }
-    //     {
-    //         vm.startPrank(bob);
-    //         address[] memory books = new address[](1);
-    //         books[0] = address(book);
-    //         uint256[] memory idCounts = new uint256[](1);
-    //         idCounts[0] = 2;
-    //         uint256[] memory ids = new uint256[](2);
-    //         ids[0] = orderIdOne;
-    //         ids[1] = orderIdTwo;
-    //         publicLibrary.settle(books, idCounts, ids, bob);
-    //         vm.stopPrank();
-    //         assert(tokenA.balanceOf(bob) == buySize);
-    //     }
-    // }
-
-    // function testSwap20toE20MultiOrderABFail() public {
-    //     uint256 sellPriceOne = (10**36) / 2000; // Read as => buy 1 USDC for 1/2000 ETH
-    //     uint256 sellPriceTwo = (10**36) / uint256(4000); // Read as => buy 1 USDC for 1/4000 ETH
-    //     uint256 sellSize = 1 ether;
-    //     uint256 orderIdOne;
-    //     uint256 orderIdTwo;
-    //     {
-    //         tokenB.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSize);
-    //         (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceOne,
-    //             sellSize / 2,
-    //             0
-    //         );
-    //         (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceTwo,
-    //             sellSize / 2,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenA), address(tokenB), sellSize);
-    //         tokenA.mint(address(alice), amountIn);
-    //         vm.startPrank(alice);
-    //         tokenA.approve(address(publicLibrary), amountIn);
-    //         vm.expectRevert(abi.encodeWithSignature('AmountInTooHigh(uint256)', 3000000000000000000000));
-    //         publicLibrary.swapERC20forExactERC20(
-    //             sellSize,
-    //             amountIn - 1,
-    //             address(tokenA),
-    //             address(tokenB),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //     }
-    // }
-
-    // function testSwap20toE20BA() public {
-    //     uint256 sellPrice = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellSize = 2000 ether;
-    //     uint256 buySize = 1 ether;
-    //     uint256 orderId;
-    //     {
-    //         tokenA.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), sellSize);
-    //         (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPrice, sellSize, 0);
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenB), address(tokenA), sellSize);
-    //         tokenB.mint(address(alice), amountIn);
-    //         vm.startPrank(alice);
-    //         tokenB.approve(address(publicLibrary), amountIn);
-    //         publicLibrary.swapERC20forExactERC20(
-    //             sellSize,
-    //             amountIn,
-    //             address(tokenB),
-    //             address(tokenA),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //         vm.stopPrank();
-    //         assert(tokenA.balanceOf(alice) == sellSize);
-    //     }
-    //     {
-    //         vm.startPrank(bob);
-    //         address[] memory books = new address[](1);
-    //         books[0] = address(book);
-    //         uint256[] memory idCounts = new uint256[](1);
-    //         idCounts[0] = 1;
-    //         uint256[] memory ids = new uint256[](1);
-    //         ids[0] = orderId;
-    //         publicLibrary.settle(books, idCounts, ids, bob);
-    //         vm.stopPrank();
-    //         assert(tokenB.balanceOf(bob) == buySize);
-    //     }
-    // }
-
-    // function testSwap20toE20FailBA() public {
-    //     uint256 sellPrice = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellSize = 2000 ether;
-    //     uint256 orderId;
-    //     {
-    //         tokenA.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), sellSize);
-    //         (, orderId) = publicLibrary.openERC20ToERC20Order(address(tokenB), address(tokenA), sellPrice, sellSize, 0);
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenB), address(tokenA), sellSize);
-    //         tokenB.mint(address(alice), amountIn);
-    //         vm.startPrank(alice);
-    //         tokenB.approve(address(publicLibrary), amountIn - 1);
-    //         vm.expectRevert(abi.encodeWithSignature('AmountInTooHigh(uint256)', 1000000000000000000));
-    //         publicLibrary.swapERC20forExactERC20(
-    //             sellSize,
-    //             amountIn - 1,
-    //             address(tokenB),
-    //             address(tokenA),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //     }
-    // }
-
-    // function testSwap20toE20MultiOrderBA() public {
-    //     uint256 sellPriceOne = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellPriceTwo = (10**36) * uint256(4000); // Read as => buy 1 ETH for 4000 USDC
-    //     uint256 sellSize = 2000 ether;
-    //     uint256 buySize = ((sellSize / 2) * (10**36)) / sellPriceOne + ((sellSize / 2) * (10**36)) / sellPriceTwo;
-    //     uint256 orderIdOne;
-    //     uint256 orderIdTwo;
-    //     {
-    //         tokenA.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), sellSize);
-    //         (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenB),
-    //             address(tokenA),
-    //             sellPriceOne,
-    //             sellSize / 2,
-    //             0
-    //         );
-    //         (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenB),
-    //             address(tokenA),
-    //             sellPriceTwo,
-    //             sellSize / 2,
-    //             1
-    //         );
-    //         vm.stopPrank();
-    //     }
-
-    //     {
-    //         uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenB), address(tokenA), sellSize);
-    //         tokenB.mint(address(alice), amountIn);
-    //         vm.startPrank(alice);
-    //         tokenB.approve(address(publicLibrary), amountIn);
-    //         publicLibrary.swapERC20forExactERC20(
-    //             sellSize,
-    //             amountIn,
-    //             address(tokenB),
-    //             address(tokenA),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //         vm.stopPrank();
-    //         assert(tokenA.balanceOf(alice) == sellSize);
-    //     }
-    //     {
-    //         vm.startPrank(bob);
-    //         address[] memory books = new address[](1);
-    //         books[0] = address(book);
-    //         uint256[] memory idCounts = new uint256[](1);
-    //         idCounts[0] = 2;
-    //         uint256[] memory ids = new uint256[](2);
-    //         ids[0] = orderIdOne;
-    //         ids[1] = orderIdTwo;
-    //         publicLibrary.settle(books, idCounts, ids, bob);
-    //         vm.stopPrank();
-    //         assert(tokenB.balanceOf(bob) == buySize);
-    //     }
-    // }
-
-    // function testSwap20toE20MultiOrderBAFail() public {
-    //     uint256 sellPriceOne = (10**36) * 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellPriceTwo = (10**36) * uint256(4000); // Read as => buy 1 ETH for 4000 USDC
-    //     uint256 sellSize = 2000 ether;
-    //     uint256 orderIdOne;
-    //     uint256 orderIdTwo;
-    //     {
-    //         tokenA.mint(address(bob), sellSize);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), sellSize);
-    //         (, orderIdOne) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenB),
-    //             address(tokenA),
-    //             sellPriceOne,
-    //             sellSize / 2,
-    //             0
-    //         );
-    //         (, orderIdTwo) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenB),
-    //             address(tokenA),
-    //             sellPriceTwo,
-    //             sellSize / 2,
-    //             1
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         uint256 amountIn = publicLibrary.getERC20ToERC20AmountIn(address(tokenB), address(tokenA), sellSize);
-    //         tokenB.mint(address(alice), amountIn);
-    //         vm.startPrank(alice);
-    //         tokenB.approve(address(publicLibrary), amountIn - 1);
-    //         vm.expectRevert(abi.encodeWithSignature('AmountInTooHigh(uint256)', 750000000000000000));
-    //         publicLibrary.swapERC20forExactERC20(
-    //             sellSize,
-    //             amountIn - 1,
-    //             address(tokenB),
-    //             address(tokenA),
-    //             alice,
-    //             block.timestamp
-    //         );
-    //     }
-    // }
-
-    // function _addressToUint(address _a) internal pure returns (uint256 v) {
-    //     assembly {
-    //         v := _a
-    //     }
-    // }
-
-    // function testGetExactOutMultiPathABC() public {
-    //     uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellPriceBC = (10**36) * 2100;
-    //     uint256 sellSizeAB = 1 ether;
-    //     uint256 sellSizeBC = 2100 ether;
-    //     uint256 orderIdAB;
-    //     uint256 orderIdBC;
-    //     uint256 buySize = 2000 ether;
-    //     {
-    //         tokenB.mint(address(bob), sellSizeAB);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSizeAB);
-    //         (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceAB,
-    //             sellSizeAB,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         tokenC.mint(address(bob), sellSizeBC);
-    //         vm.startPrank(bob);
-    //         tokenC.approve(address(publicLibrary), sellSizeBC);
-    //         (, orderIdBC) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenB),
-    //             address(tokenC),
-    //             sellPriceBC,
-    //             sellSizeBC,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     uint256[] memory path = new uint256[](6);
-    //     path[0] = 0;
-    //     path[1] = _addressToUint(address(tokenA));
-    //     path[2] = 0;
-    //     path[3] = _addressToUint(address(tokenB));
-    //     path[4] = 0;
-    //     path[5] = _addressToUint(address(tokenC));
-    //     {
-    //         uint256[] memory amountsOut = publicLibrary.getAmountsOut(path, buySize);
-    //         assert(amountsOut.length == 3);
-    //         assert(amountsOut[0] == buySize);
-    //         assert(amountsOut[1] == sellSizeAB);
-    //         assert(amountsOut[2] == sellSizeBC);
-    //     }
-    // }
-
-    // function testSwapExactInMultiPathABC() public {
-    //     uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellPriceBC = (10**36) * 2100;
-    //     uint256 sellSizeAB = 1 ether;
-    //     uint256 sellSizeBC = 2100 ether;
-    //     uint256 orderIdAB;
-    //     uint256 orderIdBC;
-    //     uint256 buySize = 2000 ether;
-    //     {
-    //         tokenB.mint(address(bob), sellSizeAB);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSizeAB);
-    //         (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceAB,
-    //             sellSizeAB,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         tokenC.mint(address(bob), sellSizeBC);
-    //         vm.startPrank(bob);
-    //         tokenC.approve(address(publicLibrary), sellSizeBC);
-    //         (, orderIdBC) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenB),
-    //             address(tokenC),
-    //             sellPriceBC,
-    //             sellSizeBC,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     uint256[] memory path = new uint256[](6);
-    //     path[0] = 0;
-    //     path[1] = _addressToUint(address(tokenA));
-    //     path[2] = 0;
-    //     path[3] = _addressToUint(address(tokenB));
-    //     path[4] = 0;
-    //     path[5] = _addressToUint(address(tokenC));
-    //     {
-    //         uint256[] memory amountsOut = publicLibrary.getAmountsOut(path, buySize);
-    //         assert(amountsOut.length == 3);
-    //         assert(amountsOut[0] == buySize);
-    //         tokenA.mint(address(bob), amountsOut[0]);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), amountsOut[0]);
-    //         assert(tokenC.balanceOf(bob) == 0);
-    //         publicLibrary.swapExactInPath(amountsOut[0], amountsOut[2], path, bob, block.timestamp);
-    //         assert(tokenC.balanceOf(bob) == sellSizeBC);
-    //         vm.stopPrank();
-    //     }
-    // }
-
-    // function testSwapExactInMultiPathFailABC() public {
-    //     uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellPriceBC = (10**36) * 2100;
-    //     uint256 sellSizeAB = 1 ether;
-    //     uint256 sellSizeBC = 2100 ether;
-    //     uint256 orderIdAB;
-    //     uint256 orderIdBC;
-    //     uint256 buySize = 2000 ether;
-    //     {
-    //         tokenB.mint(address(bob), sellSizeAB);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSizeAB);
-    //         (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceAB,
-    //             sellSizeAB,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         tokenC.mint(address(bob), sellSizeBC);
-    //         vm.startPrank(bob);
-    //         tokenC.approve(address(publicLibrary), sellSizeBC);
-    //         (, orderIdBC) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenB),
-    //             address(tokenC),
-    //             sellPriceBC,
-    //             sellSizeBC,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     uint256[] memory path = new uint256[](6);
-    //     path[0] = 0;
-    //     path[1] = _addressToUint(address(tokenA));
-    //     path[2] = 0;
-    //     path[3] = _addressToUint(address(tokenB));
-    //     path[4] = 0;
-    //     path[5] = _addressToUint(address(tokenC));
-    //     {
-    //         uint256[] memory amountsOut = publicLibrary.getAmountsOut(path, buySize);
-    //         assert(amountsOut.length == 3);
-    //         assert(amountsOut[0] == buySize);
-    //         tokenA.mint(address(bob), amountsOut[0]);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), amountsOut[0]);
-    //         vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 2100000000000000000000));
-    //         publicLibrary.swapExactInPath(amountsOut[0], amountsOut[2] + 1, path, bob, block.timestamp);
-    //         vm.stopPrank();
-    //     }
-    // }
-
-    // function testGetExactInMultiPathABC() public {
-    //     uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellPriceBC = (10**36) * 2100;
-    //     uint256 sellSizeAB = 1 ether;
-    //     uint256 sellSizeBC = 2100 ether;
-    //     uint256 orderIdAB;
-    //     uint256 orderIdBC;
-    //     uint256 buySize = 2000 ether;
-    //     {
-    //         tokenB.mint(address(bob), sellSizeAB);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSizeAB);
-    //         (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceAB,
-    //             sellSizeAB,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         tokenC.mint(address(bob), sellSizeBC);
-    //         vm.startPrank(bob);
-    //         tokenC.approve(address(publicLibrary), sellSizeBC);
-    //         (, orderIdBC) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenB),
-    //             address(tokenC),
-    //             sellPriceBC,
-    //             sellSizeBC,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     uint256[] memory path = new uint256[](6);
-    //     path[0] = 0;
-    //     path[1] = _addressToUint(address(tokenA));
-    //     path[2] = 0;
-    //     path[3] = _addressToUint(address(tokenB));
-    //     path[4] = 0;
-    //     path[5] = _addressToUint(address(tokenC));
-    //     {
-    //         uint256[] memory amountsOut = publicLibrary.getAmountsIn(path, sellSizeBC);
-    //         assert(amountsOut.length == 3);
-    //         assert(amountsOut[0] == buySize);
-    //         assert(amountsOut[1] == sellSizeAB);
-    //         assert(amountsOut[2] == sellSizeBC);
-    //     }
-    // }
-
-    // function testSwapExactOutMultiPathABC() public {
-    //     uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellPriceBC = (10**36) * 2100;
-    //     uint256 sellSizeAB = 1 ether;
-    //     uint256 sellSizeBC = 2100 ether;
-    //     uint256 orderIdAB;
-    //     uint256 orderIdBC;
-    //     uint256 buySize = 2000 ether;
-    //     {
-    //         tokenB.mint(address(bob), sellSizeAB);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSizeAB);
-    //         (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceAB,
-    //             sellSizeAB,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         tokenC.mint(address(bob), sellSizeBC);
-    //         vm.startPrank(bob);
-    //         tokenC.approve(address(publicLibrary), sellSizeBC);
-    //         (, orderIdBC) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenB),
-    //             address(tokenC),
-    //             sellPriceBC,
-    //             sellSizeBC,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     uint256[] memory path = new uint256[](6);
-    //     path[0] = 0;
-    //     path[1] = _addressToUint(address(tokenA));
-    //     path[2] = 0;
-    //     path[3] = _addressToUint(address(tokenB));
-    //     path[4] = 0;
-    //     path[5] = _addressToUint(address(tokenC));
-    //     {
-    //         uint256[] memory amountsOut = publicLibrary.getAmountsIn(path, sellSizeBC);
-    //         assert(amountsOut.length == 3);
-    //         assert(amountsOut[0] == buySize);
-    //         tokenA.mint(address(bob), amountsOut[0]);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), amountsOut[0]);
-    //         assert(tokenC.balanceOf(bob) == 0);
-    //         publicLibrary.swapExactOutPath(amountsOut[2], amountsOut[0], path, bob, block.timestamp);
-    //         assert(tokenC.balanceOf(bob) == sellSizeBC);
-    //         vm.stopPrank();
-    //     }
-    // }
-
-    // function testSwapExactOutMultiPathFailABC() public {
-    //     uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellPriceBC = (10**36) * 2100;
-    //     uint256 sellSizeAB = 1 ether;
-    //     uint256 sellSizeBC = 2100 ether;
-    //     uint256 orderIdAB;
-    //     uint256 orderIdBC;
-    //     uint256 buySize = 2000 ether;
-    //     {
-    //         tokenB.mint(address(bob), sellSizeAB);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSizeAB);
-    //         (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceAB,
-    //             sellSizeAB,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     {
-    //         tokenC.mint(address(bob), sellSizeBC);
-    //         vm.startPrank(bob);
-    //         tokenC.approve(address(publicLibrary), sellSizeBC);
-    //         (, orderIdBC) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenB),
-    //             address(tokenC),
-    //             sellPriceBC,
-    //             sellSizeBC,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     uint256[] memory path = new uint256[](6);
-    //     path[0] = 0;
-    //     path[1] = _addressToUint(address(tokenA));
-    //     path[2] = 0;
-    //     path[3] = _addressToUint(address(tokenB));
-    //     path[4] = 0;
-    //     path[5] = _addressToUint(address(tokenC));
-    //     {
-    //         uint256[] memory amountsOut = publicLibrary.getAmountsIn(path, sellSizeBC);
-    //         assert(amountsOut.length == 3);
-    //         assert(amountsOut[0] == buySize);
-    //         tokenA.mint(address(bob), amountsOut[0]);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), amountsOut[0]);
-    //         vm.expectRevert(abi.encodeWithSignature('AmountInTooHigh(uint256)', 2000000000000000000000));
-    //         publicLibrary.swapExactOutPath(amountsOut[2], amountsOut[0] - 1, path, bob, block.timestamp);
-    //         vm.stopPrank();
-    //     }
-    // }
-
-    // function testGetExactOutMultiPathAB() public {
-    //     uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellSizeAB = 1 ether;
-    //     uint256 orderIdAB;
-    //     uint256 buySize = 2000 ether;
-    //     {
-    //         tokenB.mint(address(bob), sellSizeAB);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSizeAB);
-    //         (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceAB,
-    //             sellSizeAB,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     uint256[] memory path = new uint256[](4);
-    //     path[0] = 0;
-    //     path[1] = _addressToUint(address(tokenA));
-    //     path[2] = 0;
-    //     path[3] = _addressToUint(address(tokenB));
-    //     {
-    //         uint256[] memory amountsOut = publicLibrary.getAmountsOut(path, buySize);
-    //         assert(amountsOut.length == 2);
-    //         assert(amountsOut[0] == buySize);
-    //         assert(amountsOut[1] == sellSizeAB);
-    //     }
-    // }
-
-    // function testSwapExactInMultiPathAB() public {
-    //     uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellSizeAB = 1 ether;
-    //     uint256 orderIdAB;
-    //     uint256 buySize = 2000 ether;
-    //     {
-    //         tokenB.mint(address(bob), sellSizeAB);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSizeAB);
-    //         (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceAB,
-    //             sellSizeAB,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     uint256[] memory path = new uint256[](4);
-    //     path[0] = 0;
-    //     path[1] = _addressToUint(address(tokenA));
-    //     path[2] = 0;
-    //     path[3] = _addressToUint(address(tokenB));
-    //     {
-    //         uint256[] memory amountsOut = publicLibrary.getAmountsOut(path, buySize);
-    //         assert(amountsOut.length == 2);
-    //         assert(amountsOut[0] == buySize);
-    //         tokenA.mint(address(bob), amountsOut[0]);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), amountsOut[0]);
-    //         assert(tokenB.balanceOf(bob) == 0);
-    //         publicLibrary.swapExactInPath(amountsOut[0], amountsOut[1], path, bob, block.timestamp);
-    //         assert(tokenB.balanceOf(bob) == sellSizeAB);
-    //         vm.stopPrank();
-    //     }
-    // }
-
-    // function testSwapExactInMultiPathFailAB() public {
-    //     uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellSizeAB = 1 ether;
-    //     uint256 orderIdAB;
-    //     uint256 buySize = 2000 ether;
-    //     {
-    //         tokenB.mint(address(bob), sellSizeAB);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSizeAB);
-    //         (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceAB,
-    //             sellSizeAB,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     uint256[] memory path = new uint256[](4);
-    //     path[0] = 0;
-    //     path[1] = _addressToUint(address(tokenA));
-    //     path[2] = 0;
-    //     path[3] = _addressToUint(address(tokenB));
-    //     {
-    //         uint256[] memory amountsOut = publicLibrary.getAmountsOut(path, buySize);
-    //         assert(amountsOut.length == 2);
-    //         assert(amountsOut[0] == buySize);
-    //         tokenA.mint(address(bob), amountsOut[0]);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), amountsOut[0]);
-    //         vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 1000000000000000000));
-    //         publicLibrary.swapExactInPath(amountsOut[0], amountsOut[1] + 1, path, bob, block.timestamp);
-    //         vm.stopPrank();
-    //     }
-    // }
-
-    // function testGetExactInMultiPathAB() public {
-    //     uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellSizeAB = 1 ether;
-    //     uint256 orderIdAB;
-    //     uint256 buySize = 2000 ether;
-    //     {
-    //         tokenB.mint(address(bob), sellSizeAB);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSizeAB);
-    //         (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceAB,
-    //             sellSizeAB,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     uint256[] memory path = new uint256[](4);
-    //     path[0] = 0;
-    //     path[1] = _addressToUint(address(tokenA));
-    //     path[2] = 0;
-    //     path[3] = _addressToUint(address(tokenB));
-    //     {
-    //         uint256[] memory amountsOut = publicLibrary.getAmountsIn(path, sellSizeAB);
-    //         assert(amountsOut.length == 2);
-    //         assert(amountsOut[0] == buySize);
-    //         assert(amountsOut[1] == sellSizeAB);
-    //     }
-    // }
-
-    // function testSwapExactOutMultiPathAB() public {
-    //     uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellSizeAB = 1 ether;
-    //     uint256 orderIdAB;
-    //     uint256 buySize = 2000 ether;
-    //     {
-    //         tokenB.mint(address(bob), sellSizeAB);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSizeAB);
-    //         (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceAB,
-    //             sellSizeAB,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     uint256[] memory path = new uint256[](4);
-    //     path[0] = 0;
-    //     path[1] = _addressToUint(address(tokenA));
-    //     path[2] = 0;
-    //     path[3] = _addressToUint(address(tokenB));
-    //     {
-    //         uint256[] memory amountsOut = publicLibrary.getAmountsIn(path, sellSizeAB);
-    //         assert(amountsOut.length == 2);
-    //         assert(amountsOut[0] == buySize);
-    //         tokenA.mint(address(bob), amountsOut[0]);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), amountsOut[0]);
-    //         assert(tokenB.balanceOf(bob) == 0);
-    //         publicLibrary.swapExactOutPath(amountsOut[1], amountsOut[0], path, bob, block.timestamp);
-    //         assert(tokenB.balanceOf(bob) == sellSizeAB);
-    //         vm.stopPrank();
-    //     }
-    // }
-
-    // function testSwapExactOutMultiPathFailAB() public {
-    //     uint256 sellPriceAB = (10**36) / 2000; // Read as => buy 1 ETH for 2000 USDC
-    //     uint256 sellSizeAB = 1 ether;
-    //     uint256 orderIdAB;
-    //     uint256 buySize = 2000 ether;
-    //     {
-    //         tokenB.mint(address(bob), sellSizeAB);
-    //         vm.startPrank(bob);
-    //         tokenB.approve(address(publicLibrary), sellSizeAB);
-    //         (, orderIdAB) = publicLibrary.openERC20ToERC20Order(
-    //             address(tokenA),
-    //             address(tokenB),
-    //             sellPriceAB,
-    //             sellSizeAB,
-    //             0
-    //         );
-    //         vm.stopPrank();
-    //     }
-    //     uint256[] memory path = new uint256[](4);
-    //     path[0] = 0;
-    //     path[1] = _addressToUint(address(tokenA));
-    //     path[2] = 0;
-    //     path[3] = _addressToUint(address(tokenB));
-    //     {
-    //         uint256[] memory amountsOut = publicLibrary.getAmountsIn(path, sellSizeAB);
-    //         assert(amountsOut.length == 2);
-    //         assert(amountsOut[0] == buySize);
-    //         tokenA.mint(address(bob), amountsOut[0]);
-    //         vm.startPrank(bob);
-    //         tokenA.approve(address(publicLibrary), amountsOut[0]);
-    //         vm.expectRevert(abi.encodeWithSignature('AmountInTooHigh(uint256)', 2000000000000000000000));
-    //         publicLibrary.swapExactOutPath(amountsOut[1], amountsOut[0] - 1, path, bob, block.timestamp);
-    //         vm.stopPrank();
-    //     }
-    // }
+    // swap exact In Path AB
+    // swap exact In Path BA
+    // swap exact Out Path AB
+    // swap exact Out Path BA
 }

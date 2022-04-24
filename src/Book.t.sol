@@ -72,6 +72,15 @@ contract BookTest is DSTestPlus {
         }
     }
 
+    function testOpenOrderInvalidPriceT0() public {
+        uint256 price = 10**(18 + 6) + 1;
+        uint256 orderSize = 100 ether;
+        token0.mint(address(pb), orderSize);
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSignature('InvalidPrice()'));
+        pb.open(price, 0, bob);
+    }
+
     function testOpenOrderT1() public {
         {
             uint256 price = 10**(18 + 6);
@@ -94,6 +103,15 @@ contract BookTest is DSTestPlus {
             assert(order.remainingLiquidity == 100 ether);
             assert(order.nextLiquidity == 0);
         }
+    }
+
+    function testOpenOrderInvalidPriceT1() public {
+        uint256 price = 10**(18 + 6) + 1;
+        uint256 orderSize = 100 ether;
+        token1.mint(address(pb), orderSize);
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSignature('InvalidPrice()'));
+        pb.open(price, 0, bob);
     }
 
     function checkIndexes(
@@ -437,6 +455,42 @@ contract BookTest is DSTestPlus {
         }
     }
 
+    function testFillOrderAmountOutNotMultipleT0() public {
+        uint256 price = 100 * 10**(18 + 6);
+        uint256 orderSize = 100 ether;
+        {
+            token0.mint(address(pb), orderSize);
+            vm.startPrank(bob);
+            assert(pb.keyOrderIndexes(0) == 0);
+            assert(pb.keyOrderIndexes(1) == 0);
+            pb.open(price, 0, bob);
+            assert(pb.keyOrderIndexes(0) == 1);
+            assert(pb.keyOrderIndexes(1) == 1);
+        }
+        {
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 100 * 10**(18 + 6));
+            assert(order.token == 0);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
+        }
+        {
+            uint256 amount1In = (orderSize * price) / (10**(18 + 6));
+            token1.mint(address(pb), amount1In);
+            vm.expectRevert(
+                abi.encodeWithSignature(
+                    'AmountOutNotMultipleOfPrice(uint256,uint256)',
+                    99999999999999999901,
+                    100000000000000000000000000
+                )
+            );
+            pb.swap(orderSize - 99, 0, bob, '');
+        }
+    }
+
     function testFillOrderFailT0() public {
         uint256 price = 10**(18 + 6);
         uint256 orderSize = 100 ether;
@@ -464,6 +518,42 @@ contract BookTest is DSTestPlus {
             token1.mint(address(pb), amount1In - 1);
             vm.expectRevert(abi.encodeWithSignature('InvalidBalances()'));
             pb.swap(orderSize, 0, bob, '');
+        }
+    }
+
+    function testFillOrderAmountOutNotMultipleT1() public {
+        uint256 price = 100 * 10**(18 + 6);
+        uint256 orderSize = 100 ether;
+        {
+            token1.mint(address(pb), orderSize);
+            vm.startPrank(bob);
+            assert(pb.keyOrderIndexes(2) == 0);
+            assert(pb.keyOrderIndexes(3) == 0);
+            pb.open(price, 0, bob);
+            assert(pb.keyOrderIndexes(2) == 1);
+            assert(pb.keyOrderIndexes(3) == 1);
+        }
+        {
+            IBook.Order memory order = pb.orders(1);
+            assert(order.prev == 0);
+            assert(order.next == 0);
+            assert(order.price == 100 * 10**(18 + 6));
+            assert(order.token == 1);
+            assert(order.liquidity == 100 ether);
+            assert(order.remainingLiquidity == 100 ether);
+            assert(order.nextLiquidity == 0);
+        }
+        {
+            uint256 amount0In = (orderSize * price) / (10**(18 + 6));
+            token0.mint(address(pb), amount0In);
+            vm.expectRevert(
+                abi.encodeWithSignature(
+                    'AmountOutNotMultipleOfPrice(uint256,uint256)',
+                    99999999999999999901,
+                    100000000000000000000000000
+                )
+            );
+            pb.swap(0, orderSize - 99, bob, '');
         }
     }
 
