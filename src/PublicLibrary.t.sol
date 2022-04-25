@@ -1265,6 +1265,43 @@ contract PublicLibraryERC20ToERC20Test is DSTestPlus {
         assertEq(_balanceOf(order, bob), amountIn);
     }
 
+    function testSwapMaxNoOrderAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amountIn = 1 ether;
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            vm.expectRevert(abi.encodeWithSignature('NullOutput()'));
+            publicLibrary.swapMaxAbovePrice(amountIn, price, tokenA_, tokenB_, alice, block.timestamp);
+            vm.stopPrank();
+        }
+    }
+
+    function testSwapMaxCrossedDealineAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(2000 ether, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            vm.warp(100);
+            vm.expectRevert(abi.encodeWithSignature('DeadlineCrossed()'));
+            publicLibrary.swapMaxAbovePrice(amountIn, price, tokenA_, tokenB_, alice, block.timestamp - 1);
+            vm.stopPrank();
+        }
+    }
+
     function testSwapMaxUniqueOrderNotMultipleAB() public {
         uint256 price = 10**(decimalsA + decimalsB) * 2000;
         uint256 amount = 2000 ether;
@@ -1560,6 +1597,362 @@ contract PublicLibraryERC20ToERC20Test is DSTestPlus {
         assertEq(_balanceOf(order, bob), amountIn);
         ++order[2];
         assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapMaxNoOrderBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amountIn = 2000 ether;
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            vm.expectRevert(abi.encodeWithSignature('NullOutput()'));
+            publicLibrary.swapMaxAbovePrice(amountIn, price, tokenB_, tokenA_, alice, block.timestamp);
+            vm.stopPrank();
+        }
+    }
+
+    function testSwapMaxNullOutputBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = 1;
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            vm.expectRevert(abi.encodeWithSignature('NullOutput()'));
+            publicLibrary.swapMaxAbovePrice(amountIn, price, tokenB_, tokenA_, alice, block.timestamp);
+            vm.stopPrank();
+        }
+    }
+
+    function testSwapMaxUniqueOrderBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(1 ether, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            (uint256 finalAmountIn, uint256 finalAmountOut) = publicLibrary.swapMaxAbovePrice(
+                amountIn,
+                price,
+                tokenB_,
+                tokenA_,
+                alice,
+                block.timestamp
+            );
+            assertEq(finalAmountIn, amountIn);
+            assertEq(finalAmountOut, 1 ether);
+            assertEq(_balanceOf(tokenA_, alice), 1 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapMaxCrossedDealineBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(1 ether, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            vm.warp(100);
+            vm.expectRevert(abi.encodeWithSignature('DeadlineCrossed()'));
+            publicLibrary.swapMaxAbovePrice(amountIn, price, tokenB_, tokenA_, alice, block.timestamp - 1);
+            vm.stopPrank();
+        }
+    }
+
+    function testSwapMaxUniqueOrderNotMultipleBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(1 ether, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn + 1);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn + 1);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            (uint256 finalAmountIn, uint256 finalAmountOut) = publicLibrary.swapMaxAbovePrice(
+                amountIn + 1,
+                price,
+                tokenB_,
+                tokenA_,
+                alice,
+                block.timestamp
+            );
+            assertEq(finalAmountIn, amountIn);
+            assertEq(finalAmountOut, 1 ether);
+            assertEq(_balanceOf(tokenA_, alice), 1 ether);
+            assertEq(_balanceOf(tokenB_, alice), 1);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapMaxUniqueOrderHalfFillBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(0.5 ether, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            (uint256 finalAmountIn, uint256 finalAmountOut) = publicLibrary.swapMaxAbovePrice(
+                amountIn,
+                price,
+                tokenB_,
+                tokenA_,
+                alice,
+                block.timestamp
+            );
+            assertEq(finalAmountIn, amountIn);
+            assertEq(finalAmountOut, 0.5 ether);
+            assertEq(_balanceOf(tokenA_, alice), 0.5 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), amountIn);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapMaxTwoOrdersBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) / 4000;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(2 ether, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            (uint256 finalAmountIn, uint256 finalAmountOut) = publicLibrary.swapMaxAbovePrice(
+                amountIn,
+                price,
+                tokenB_,
+                tokenA_,
+                alice,
+                block.timestamp
+            );
+            assertEq(finalAmountIn, amountIn);
+            assertEq(finalAmountOut, 2 ether);
+            assertEq(_balanceOf(tokenA_, alice), 2 ether);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 2000 ether);
+    }
+
+    function testSwapMaxTwoOrdersOutpricingOneBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) / 4000;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(1 ether, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn);
+        {
+            price = 10**(decimalsA + decimalsB) / 2000;
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            (uint256 finalAmountIn, uint256 finalAmountOut) = publicLibrary.swapMaxAbovePrice(
+                amountIn,
+                price,
+                tokenB_,
+                tokenA_,
+                alice,
+                block.timestamp
+            );
+            assertEq(finalAmountIn, amountIn);
+            assertEq(finalAmountOut, 1 ether);
+            assertEq(_balanceOf(tokenA_, alice), 1 ether);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 2000 ether);
+    }
+
+    function testSwapMaxTwoOrdersNotMultipleBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) / 4000;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(2 ether, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn + 1);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn + 1);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            (uint256 finalAmountIn, uint256 finalAmountOut) = publicLibrary.swapMaxAbovePrice(
+                amountIn + 1,
+                price,
+                tokenB_,
+                tokenA_,
+                alice,
+                block.timestamp
+            );
+            assertEq(finalAmountIn, amountIn);
+            assertEq(finalAmountOut, 2 ether);
+            assertEq(_balanceOf(tokenA_, alice), 2 ether);
+            assertEq(_balanceOf(tokenB_, alice), 1);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 2000 ether);
+    }
+
+    function testSwapMaxTwoOrdersOutpricingOneNotMultipleBA() public {
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) / 4000;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(1 ether, tokenB_, tokenA_);
+        _mint(tokenB_, alice, amountIn + 1);
+        {
+            price = 10**(decimalsA + decimalsB) / 2000;
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn + 1);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            (uint256 finalAmountIn, uint256 finalAmountOut) = publicLibrary.swapMaxAbovePrice(
+                amountIn + 1,
+                price,
+                tokenB_,
+                tokenA_,
+                alice,
+                block.timestamp
+            );
+            assertEq(finalAmountIn, amountIn);
+            assertEq(finalAmountOut, 1 ether);
+            assertEq(_balanceOf(tokenA_, alice), 1 ether);
+            assertEq(_balanceOf(tokenB_, alice), 1);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 2000 ether);
     }
 
     // swap exact In Path AB
