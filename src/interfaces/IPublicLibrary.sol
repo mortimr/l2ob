@@ -51,15 +51,12 @@ interface IPublicLibrary {
         uint256 _deadline
     ) external returns (uint256 amountIn, uint256 amountOut);
 
-    function getAmountsOut(uint256[] calldata _path, uint256 _amountIn)
+    function getAmountsOut(uint256 _amountIn, uint256[] calldata _path)
         external
         view
         returns (uint256[] memory amounts);
 
-    function getAmountsIn(uint256[] calldata _path, uint256 _amountOut)
-        external
-        view
-        returns (uint256[] memory amounts);
+    function getAmountsIn(uint256 _amountIn, uint256[] calldata _path) external view returns (uint256[] memory amounts);
 
     function swapExactIn(
         uint256 _amountIn,

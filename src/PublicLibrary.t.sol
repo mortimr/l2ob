@@ -94,7 +94,7 @@ contract PublicLibraryERC20ToERC20Test is DSTestPlus {
         tokenB_[1] = _addressToUint(address(tokenB));
         tokenB_[2] = 0;
         tokenC = new ERC20Mock('Dai Stablecoin', 'DAI', 6);
-        decimalsC = 12;
+        decimalsC = 6;
         tokenC_[0] = 0;
         tokenC_[1] = _addressToUint(address(tokenC));
         tokenC_[2] = 0;
@@ -1956,7 +1956,1234 @@ contract PublicLibraryERC20ToERC20Test is DSTestPlus {
     }
 
     // swap exact In Path AB
+    function testSwapExactInUniqueOrderAB() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenA_[0];
+        swapPath[1] = tokenA_[1];
+        swapPath[2] = tokenB_[0];
+        swapPath[3] = tokenB_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsIn(2000 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 2000 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapExactInAmountOutTooLowAB() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenA_[0];
+        swapPath[1] = tokenA_[1];
+        swapPath[2] = tokenB_[0];
+        swapPath[3] = tokenB_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsIn(2000 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 2000000000000000000000));
+            publicLibrary.swapExactIn(amountIn, amountOut + 1, swapPath, alice, block.timestamp);
+            vm.stopPrank();
+        }
+    }
+
+    function testSwapExactInDeadlineCrossedAB() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenA_[0];
+        swapPath[1] = tokenA_[1];
+        swapPath[2] = tokenB_[0];
+        swapPath[3] = tokenB_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsIn(2000 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            vm.warp(100);
+            vm.expectRevert(abi.encodeWithSignature('DeadlineCrossed()'));
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp - 1);
+            vm.stopPrank();
+        }
+    }
+
+    function testSwapExactInUniqueOrderHalfFillAB() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenA_[0];
+        swapPath[1] = tokenA_[1];
+        swapPath[2] = tokenB_[0];
+        swapPath[3] = tokenB_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsIn(1000 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 1000 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), amountIn);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapExactInTwoOrdersAB() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenA_[0];
+        swapPath[1] = tokenA_[1];
+        swapPath[2] = tokenB_[0];
+        swapPath[3] = tokenB_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsIn(3800 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 3800 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 1 ether);
+    }
+
+    function testSwapExactInTwoOrdersFillOneAB() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenA_[0];
+        swapPath[1] = tokenA_[1];
+        swapPath[2] = tokenB_[0];
+        swapPath[3] = tokenB_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsIn(2000 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 2000 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapExactInABC() public {
+        uint256[] memory swapPath = new uint256[](6);
+
+        swapPath[0] = tokenA_[0];
+        swapPath[1] = tokenA_[1];
+        swapPath[2] = tokenB_[0];
+        swapPath[3] = tokenB_[1];
+        swapPath[4] = tokenC_[0];
+        swapPath[5] = tokenC_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) * 1000;
+        amount = 2000 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        price = 10**(decimalsB + decimalsC) / 4000;
+        amount = 1 ether;
+        _mint(tokenC_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenC_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenC_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsIn(1 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenC_, alice), 1 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 1 ether);
+    }
+
     // swap exact In Path BA
+    function testSwapExactInUniqueOrderBA() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenB_[0];
+        swapPath[1] = tokenB_[1];
+        swapPath[2] = tokenA_[0];
+        swapPath[3] = tokenA_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsIn(1 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), 1 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapExactInAmountOutTooLowBA() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenB_[0];
+        swapPath[1] = tokenB_[1];
+        swapPath[2] = tokenA_[0];
+        swapPath[3] = tokenA_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsIn(1 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 1 ether));
+            publicLibrary.swapExactIn(amountIn, amountOut + 1, swapPath, alice, block.timestamp);
+            vm.stopPrank();
+        }
+    }
+
+    function testSwapExactInDeadlineCrossedBA() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenB_[0];
+        swapPath[1] = tokenB_[1];
+        swapPath[2] = tokenA_[0];
+        swapPath[3] = tokenA_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsIn(1 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            vm.warp(100);
+            vm.expectRevert(abi.encodeWithSignature('DeadlineCrossed()'));
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp - 1);
+            vm.stopPrank();
+        }
+    }
+
+    function testSwapExactInUniqueOrderHalfFillBA() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenB_[0];
+        swapPath[1] = tokenB_[1];
+        swapPath[2] = tokenA_[0];
+        swapPath[3] = tokenA_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsIn(0.5 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), 0.5 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), amountIn);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapExactInTwoOrdersBA() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenB_[0];
+        swapPath[1] = tokenB_[1];
+        swapPath[2] = tokenA_[0];
+        swapPath[3] = tokenA_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) / 4000;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsIn(2 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), 2 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 2000 ether);
+    }
+
+    function testSwapExactInTwoOrdersFillOneBA() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenB_[0];
+        swapPath[1] = tokenB_[1];
+        swapPath[2] = tokenA_[0];
+        swapPath[3] = tokenA_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) / 4000;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsIn(1 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), 1 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 2000 ether);
+    }
+
     // swap exact Out Path AB
-    // swap exact Out Path BA
+    function testSwapExactOutUniqueOrderAB() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenA_[0];
+        swapPath[1] = tokenA_[1];
+        swapPath[2] = tokenB_[0];
+        swapPath[3] = tokenB_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsOut(1 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 2000 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapExactOutAmountOutTooLowAB() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenA_[0];
+        swapPath[1] = tokenA_[1];
+        swapPath[2] = tokenB_[0];
+        swapPath[3] = tokenB_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsOut(1 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 2000000000000000000000));
+            publicLibrary.swapExactIn(amountIn, amountOut + 1, swapPath, alice, block.timestamp);
+            vm.stopPrank();
+        }
+    }
+
+    function testSwapExactOutDeadlineCrossedAB() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenA_[0];
+        swapPath[1] = tokenA_[1];
+        swapPath[2] = tokenB_[0];
+        swapPath[3] = tokenB_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsOut(1 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            vm.warp(100);
+            vm.expectRevert(abi.encodeWithSignature('DeadlineCrossed()'));
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp - 1);
+            vm.stopPrank();
+        }
+    }
+
+    function testSwapExactOutUniqueOrderHalfFillAB() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenA_[0];
+        swapPath[1] = tokenA_[1];
+        swapPath[2] = tokenB_[0];
+        swapPath[3] = tokenB_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsOut(0.5 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 1000 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), amountIn);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapExactOutTwoOrdersAB() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenA_[0];
+        swapPath[1] = tokenA_[1];
+        swapPath[2] = tokenB_[0];
+        swapPath[3] = tokenB_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsOut(2 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 3800 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 1 ether);
+    }
+
+    function testSwapExactOutTwoOrdersFillOneAB() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenA_[0];
+        swapPath[1] = tokenA_[1];
+        swapPath[2] = tokenB_[0];
+        swapPath[3] = tokenB_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsOut(1 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 2000 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapExactOutABC() public {
+        uint256[] memory swapPath = new uint256[](6);
+
+        swapPath[0] = tokenA_[0];
+        swapPath[1] = tokenA_[1];
+        swapPath[2] = tokenB_[0];
+        swapPath[3] = tokenB_[1];
+        swapPath[4] = tokenC_[0];
+        swapPath[5] = tokenC_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) * 1000;
+        amount = 2000 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+        }
+        price = 10**(decimalsB + decimalsC) / 4000;
+        amount = 1 ether;
+        _mint(tokenC_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenC_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenC_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsOut(3 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenC_, alice), 1 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 1 ether);
+    }
+
+    function testSwapExactOutUniqueOrderBA() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenB_[0];
+        swapPath[1] = tokenB_[1];
+        swapPath[2] = tokenA_[0];
+        swapPath[3] = tokenA_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsOut(2000 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), 1 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapExactOutAmountOutTooLowBA() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenB_[0];
+        swapPath[1] = tokenB_[1];
+        swapPath[2] = tokenA_[0];
+        swapPath[3] = tokenA_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsOut(2000 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            vm.expectRevert(abi.encodeWithSignature('AmountOutTooLow(uint256)', 1 ether));
+            publicLibrary.swapExactIn(amountIn, amountOut + 1, swapPath, alice, block.timestamp);
+            vm.stopPrank();
+        }
+    }
+
+    function testSwapExactOutDeadlineCrossedBA() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenB_[0];
+        swapPath[1] = tokenB_[1];
+        swapPath[2] = tokenA_[0];
+        swapPath[3] = tokenA_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsOut(2000 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            vm.warp(100);
+            vm.expectRevert(abi.encodeWithSignature('DeadlineCrossed()'));
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp - 1);
+            vm.stopPrank();
+        }
+    }
+
+    function testSwapExactOutUniqueOrderHalfFillBA() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenB_[0];
+        swapPath[1] = tokenB_[1];
+        swapPath[2] = tokenA_[0];
+        swapPath[3] = tokenA_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsOut(1000 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), 0.5 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), amountIn);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+    }
+
+    function testSwapExactOutTwoOrdersBA() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenB_[0];
+        swapPath[1] = tokenB_[1];
+        swapPath[2] = tokenA_[0];
+        swapPath[3] = tokenA_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) / 4000;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsOut(6000 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), 2 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 2000 ether);
+    }
+
+    function testSwapExactOutTwoOrdersFillOneBA() public {
+        uint256[] memory swapPath = new uint256[](4);
+
+        swapPath[0] = tokenB_[0];
+        swapPath[1] = tokenB_[1];
+        swapPath[2] = tokenA_[0];
+        swapPath[3] = tokenA_[1];
+
+        uint256 price = 10**(decimalsA + decimalsB) / 2000;
+        uint256 amount = 1 ether;
+        uint256[3] memory order;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            (address _book, uint256 orderId) = publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) / 4000;
+        amount = 1 ether;
+        _mint(tokenA_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenA_, address(publicLibrary), amount);
+            publicLibrary.open(tokenB_, tokenA_, price, amount, 0);
+            vm.stopPrank();
+        }
+        uint256[] memory amounts = publicLibrary.getAmountsOut(2000 ether, swapPath);
+        uint256 amountIn = amounts[0];
+        uint256 amountOut = amounts[amounts.length - 1];
+        _mint(tokenB_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenB_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenA_, alice), 0);
+            publicLibrary.swapExactIn(amountIn, amountOut, swapPath, alice, block.timestamp);
+            assertEq(_balanceOf(tokenA_, alice), 1 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 2000 ether);
+    }
+
+    function testSettleFilledOrder() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        address _book;
+        uint256 orderId;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (_book, orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(amount, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactTokenForToken(amountIn, 2000 ether, tokenA_, tokenB_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 2000 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+        --order[2];
+        {
+            vm.startPrank(bob);
+            _approve(order, address(publicLibrary), amountIn);
+            address[] memory _books = new address[](1);
+            uint256[] memory _orderCounts = new uint256[](1);
+            uint256[] memory _orderIds = new uint256[](1);
+
+            _books[0] = _uintToAddress(order[1]);
+            _orderCounts[0] = 1;
+            _orderIds[0] = order[2];
+            assertEq(_balanceOf(tokenA_, bob), 0);
+            publicLibrary.settle(_books, _orderCounts, _orderIds, bob);
+            assertEq(_balanceOf(tokenA_, bob), amountIn);
+            vm.stopPrank();
+        }
+    }
+
+    function testSettleHalfFilledOrder() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        address _book;
+        uint256 orderId;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (_book, orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(amount / 2, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactTokenForToken(amountIn, 1000 ether, tokenA_, tokenB_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 1000 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), amountIn);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), amountIn);
+        --order[2];
+        {
+            vm.startPrank(bob);
+            _approve(order, address(publicLibrary), amountIn * 2);
+            address[] memory _books = new address[](1);
+            uint256[] memory _orderCounts = new uint256[](1);
+            uint256[] memory _orderIds = new uint256[](1);
+
+            _books[0] = _uintToAddress(order[1]);
+            _orderCounts[0] = 1;
+            _orderIds[0] = order[2];
+            assertEq(_balanceOf(tokenA_, bob), 0);
+            publicLibrary.settle(_books, _orderCounts, _orderIds, bob);
+            assertEq(_balanceOf(tokenA_, bob), amountIn);
+            vm.stopPrank();
+        }
+    }
+
+    function testSettleTwoFilledOrder() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory order;
+        address _book;
+        uint256 orderId;
+        uint256 secondOrderId;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (_book, orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        price = 10**(decimalsA + decimalsB) * 1800;
+        amount = 1800 ether;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (, secondOrderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            vm.stopPrank();
+            order = _getOrderToken(_book, orderId);
+        }
+        uint256 amountIn = publicLibrary.getAmountIn(3800 ether, tokenA_, tokenB_);
+        _mint(tokenA_, alice, amountIn);
+        {
+            vm.startPrank(alice);
+            _approve(tokenA_, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, alice), 0);
+            publicLibrary.swapExactTokenForToken(amountIn, 3800 ether, tokenA_, tokenB_, alice, block.timestamp);
+            assertEq(_balanceOf(tokenB_, alice), 3800 ether);
+            vm.stopPrank();
+        }
+        assertEq(_balanceOf(order, bob), 0);
+        ++order[2];
+        assertEq(_balanceOf(order, bob), 1 ether);
+        --order[2];
+        {
+            vm.startPrank(bob);
+            _approve(order, address(publicLibrary), amountIn);
+            address[] memory _books = new address[](1);
+            uint256[] memory _orderCounts = new uint256[](1);
+            uint256[] memory _orderIds = new uint256[](2);
+
+            _books[0] = _uintToAddress(order[1]);
+            _orderCounts[0] = 2;
+            _orderIds[0] = orderId;
+            _orderIds[1] = secondOrderId;
+            assertEq(_balanceOf(tokenA_, bob), 0);
+            publicLibrary.settle(_books, _orderCounts, _orderIds, bob);
+            assertEq(_balanceOf(tokenA_, bob), amountIn);
+            vm.stopPrank();
+        }
+    }
+
+    function testCloseAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory orderToken;
+        address _book;
+        uint256 orderId;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (_book, orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            orderToken = _getOrderToken(_book, orderId);
+            assertEq(_balanceOf(orderToken, bob), _getAmountIn(amount, price, decimalsA + decimalsB));
+            vm.stopPrank();
+        }
+        {
+            vm.startPrank(bob);
+            uint256 amountIn = _getAmountIn(amount, price, decimalsA + decimalsB);
+            _approve(orderToken, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, bob), 0);
+            publicLibrary.closeOrder(_book, orderId, amountIn);
+            assertEq(_balanceOf(tokenB_, bob), amount);
+            vm.stopPrank();
+        }
+    }
+
+    function testCloseNoBalanceAB() public {
+        uint256 price = 10**(decimalsA + decimalsB) * 2000;
+        uint256 amount = 2000 ether;
+        uint256[3] memory orderToken;
+        address _book;
+        uint256 orderId;
+        _mint(tokenB_, bob, amount);
+        {
+            vm.startPrank(bob);
+            _approve(tokenB_, address(publicLibrary), amount);
+            (_book, orderId) = publicLibrary.open(tokenA_, tokenB_, price, amount, 0);
+            orderToken = _getOrderToken(_book, orderId);
+            assertEq(_balanceOf(orderToken, bob), _getAmountIn(amount, price, decimalsA + decimalsB));
+            vm.stopPrank();
+        }
+        {
+            vm.startPrank(alice);
+            uint256 amountIn = _getAmountIn(amount, price, decimalsA + decimalsB);
+            _approve(orderToken, address(publicLibrary), amountIn);
+            assertEq(_balanceOf(tokenB_, bob), 0);
+            vm.expectRevert(abi.encodeWithSignature('Panic(uint256)', 17));
+            publicLibrary.closeOrder(_book, orderId, amountIn);
+            vm.stopPrank();
+        }
+    }
 }

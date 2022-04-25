@@ -180,9 +180,9 @@ contract PublicLibrary is IPublicLibrary {
     /// @dev An ERC20 encoded element consists of [0, uint256(tokenAddress)]
     /// @dev An ERC1155 encoded element consists of [1, uint256(tokenAddress), uint256(tokenId)]
     /// @dev The amounts length is equal to the number of elements in the path, not the raw number of values in the path
-    /// @param _path Encoded swap path argument
     /// @param _amountIn Exact amount in provided to swap path
-    function getAmountsOut(uint256[] calldata _path, uint256 _amountIn)
+    /// @param _path Encoded swap path argument
+    function getAmountsOut(uint256 _amountIn, uint256[] calldata _path)
         external
         view
         override
@@ -199,9 +199,9 @@ contract PublicLibrary is IPublicLibrary {
     /// @dev An ERC20 encoded element consists of [0, uint256(tokenAddress)]
     /// @dev An ERC1155 encoded element consists of [1, uint256(tokenAddress), uint256(tokenId)]
     /// @dev The amounts length is equal to the number of elements in the path, not the raw number of values in the path
-    /// @param _path Encoded swap path argument
     /// @param _amountOut Exact amount out expected from swap path
-    function getAmountsIn(uint256[] calldata _path, uint256 _amountOut)
+    /// @param _path Encoded swap path argument
+    function getAmountsIn(uint256 _amountOut, uint256[] calldata _path)
         external
         view
         override
